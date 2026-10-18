@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { fetchTrending, fetchPopular, fetchByGenre } from "../../api/tmdb";
+// שים לב שהוספנו את fetchTopRated לייבוא
+import { fetchTrending, fetchPopular, fetchByGenre, fetchTopRated } from "../../api/tmdb";
 import MovieRow from "../../components/movie/MovieRow/MovieRow";
 import CategoryFilter from "../../components/movie/CategoryFilter/CategoryFilter";
 import "./Home.css";
@@ -8,6 +9,7 @@ import "./Home.css";
 function Home() {
   const [trending, setTrending] = useState([]);
   const [popular, setPopular] = useState([]);
+  const [topRated, setTopRated] = useState([]); // ה-State החדש שלנו
   const [activeCategory, setActiveCategory] = useState("all");
   const [currentIndex, setCurrentIndex] = useState(0);
   const navigate = useNavigate();
@@ -23,10 +25,19 @@ function Home() {
   useEffect(() => {
     const loadMovies = async () => {
       try {
-        const [trendingData, popularData] = await Promise.all([fetchTrending(), fetchPopular()]);
+        // משכנו גם את topRated ב-Promise.all
+        const [trendingData, popularData, topRatedData] = await Promise.all([
+          fetchTrending(), 
+          fetchPopular(),
+          fetchTopRated()
+        ]);
+        
         setTrending(trendingData);
         setPopular(popularData);
-      } catch (error) {}
+        setTopRated(topRatedData);
+      } catch (error) {
+        console.error("Error loading movies:", error);
+      }
     };
     loadMovies();
   }, []);
@@ -39,62 +50,65 @@ function Home() {
     return () => clearInterval(interval);
   }, [trending]);
 
-const [filteredMovies, setFilteredMovies] = useState([]);
+  const [filteredMovies, setFilteredMovies] = useState([]);
 
-useEffect(() => {
-    const loadFiltered = async () => {
-        const results = await fetchByGenre(activeCategory);
-        setFilteredMovies(results);
-    };
-    loadFiltered();
-}, [activeCategory]);
+  useEffect(() => {
+      const loadFiltered = async () => {
+          const results = await fetchByGenre(activeCategory);
+          setFilteredMovies(results);
+      };
+      loadFiltered();
+  }, [activeCategory]);
 
   const currentMovie = trending[currentIndex];
 
-return (
-  <div className="home-container">
-    {currentMovie && (
-      <div 
-        className="hero" 
-        style={{ backgroundImage: `url('https://image.tmdb.org/t/p/original/${currentMovie.backdrop_path}')` }}
-        onClick={() => navigate(`/movie/${currentMovie.id}`)}
-      >
-        <div className="hero-overlay"></div>
-        <div className="hero-content">
-          <h1>{currentMovie.title}</h1>
-          <p className="hero-overview">
-            {currentMovie.overview.length > 200 
-              ? `${currentMovie.overview.substring(0, 200)}...` 
-              : currentMovie.overview}
-          </p>
+  return (
+    <div className="home-container">
+      {currentMovie && (
+        <div 
+          className="hero" 
+          style={{ backgroundImage: `url('https://image.tmdb.org/t/p/original/${currentMovie.backdrop_path}')` }}
+          onClick={() => navigate(`/movie/${currentMovie.id}`)}
+        >
+          <div className="hero-overlay"></div>
+          <div className="hero-content">
+            <h1>{currentMovie.title}</h1>
+            <p className="hero-overview">
+              {currentMovie.overview.length > 200 
+                ? `${currentMovie.overview.substring(0, 200)}...` 
+                : currentMovie.overview}
+            </p>
+          </div>
+        </div>
+      )}
+      
+      <div className="content-wrapper">
+        <div className="rows-container">
+          <MovieRow title="Trending This Week" movies={trending} />
+          <MovieRow title="Popular Movies" movies={popular} />
+          
+          {/* השורה החדשה שהוספנו */}
+          <MovieRow title="Top Rated of All Time" movies={topRated} />
+
+          <section className="section-spacing">
+              <h2 className="browse-title">Browse by Category</h2>
+              <CategoryFilter 
+                categories={categories} 
+                activeCategory={activeCategory} 
+                onSelect={setActiveCategory} 
+              />
+              
+              {filteredMovies.length > 0 && (
+                <MovieRow 
+                  title={`${categories.find(c => c.id === activeCategory)?.name || ""} Movies`} 
+                  movies={filteredMovies} 
+                />
+              )}
+          </section>
         </div>
       </div>
-    )}
-    
-    <div className="content-wrapper">
-      <div className="rows-container">
-        <MovieRow title="Trending This Week" movies={trending} />
-        <MovieRow title="Popular Movies" movies={popular} />
-
-        <section className="section-spacing">
-            <h2 className="section-title">Browse by Category</h2>
-            <CategoryFilter 
-              categories={categories} 
-              activeCategory={activeCategory} 
-              onSelect={setActiveCategory} 
-            />
-            
-            {filteredMovies.length > 0 && (
-              <MovieRow 
-                title={`${categories.find(c => c.id === activeCategory)?.name || ""} Movies`} 
-                movies={filteredMovies} 
-              />
-            )}
-        </section>
-      </div>
     </div>
-  </div>
-);
+  );
 }
 
 export default Home;

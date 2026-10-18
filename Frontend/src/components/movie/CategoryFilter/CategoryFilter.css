@@ -1,3 +1,35 @@
-.filter-container { display: flex; gap: 10px; margin: 20px 40px; overflow-x: auto; }
-.filter-btn { background: #111; color: white; border: 1px solid #333; padding: 8px 20px; border-radius: 20px; cursor: pointer; transition: 0.3s; }
-.filter-btn.active, .filter-btn:hover { background: #000000; border-color: #f3f3f3; }
+/* src/components/movie/CategoryFilter/CategoryFilter.css */
+.filter-container { 
+  display: flex; 
+  gap: 10px;
+  margin: 15px 0 30px 0;
+  overflow-x: auto; 
+  padding-bottom: 10px;
+  scrollbar-width: none; 
+}
+
+.filter-container::-webkit-scrollbar {
+  display: none;
+}
+
+.filter-btn { 
+  background: #000000; 
+  color: #cccccc;
+  /* הוספת קו מתאר בצבע תכלת/טורקיז עדין כברירת מחדל */
+  border: 1px solid #14b8a6; 
+  padding: 8px 24px; 
+  border-radius: 25px;
+  cursor: pointer;
+  transition: all 0.3s ease; 
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+/* מצב פעיל (Active) ומעבר עכבר (Hover) - מילוי מלא בטורקיז */
+.filter-btn.active, 
+.filter-btn:hover { 
+  background: #14b8a6; 
+  border-color: #14b8a6; 
+  color: #ffffff;
+  box-shadow: 0 4px 15px rgba(20, 184, 166, 0.3);
+}

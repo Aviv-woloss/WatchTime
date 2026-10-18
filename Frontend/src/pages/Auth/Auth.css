@@ -1,0 +1,220 @@
+/* Auth.css */
+.auth-container {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background-color: var(--bg);
+  position: relative;
+}
+
+.auth-header {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  padding: 28px 48px;
+  z-index: 20;
+}
+
+.auth-logo {
+  font-family: var(--font-display);
+  font-size: 1.6rem;
+  font-weight: 600;
+  color: var(--text-main);
+  letter-spacing: 0.01em;
+  transition: opacity 0.2s ease;
+}
+
+.auth-logo:hover {
+  opacity: 0.85;
+}
+
+.auth-bg {
+  position: absolute;
+  inset: 0;
+  background-size: cover;
+  background-position: center;
+  opacity: 0.28;
+  z-index: 1;
+}
+
+.auth-container::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  background: linear-gradient(to top, var(--bg) 5%, rgba(6, 6, 7, 0.6) 55%, rgba(6, 6, 7, 0.85) 100%);
+}
+
+.auth-card {
+  position: relative;
+  z-index: 10;
+  background: rgba(14, 14, 16, 0.72);
+  backdrop-filter: blur(22px) saturate(140%);
+  -webkit-backdrop-filter: blur(22px) saturate(140%);
+  padding: 56px 64px 44px;
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--border-strong);
+  width: 100%;
+  max-width: 440px;
+  box-shadow: var(--shadow-strong);
+  color: var(--text-main);
+  margin-top: 60px;
+}
+
+.auth-title {
+  font-family: var(--font-display);
+  font-size: 2rem;
+  margin-bottom: 30px;
+  font-weight: 600;
+}
+
+.auth-form {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.auth-input {
+  background-color: rgba(255, 255, 255, 0.045);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 15px 18px;
+  color: var(--text-main);
+  font-size: 0.96rem;
+  transition: var(--transition);
+}
+
+.auth-input::placeholder {
+  color: var(--text-faint);
+}
+
+.auth-input:focus {
+  outline: none;
+  background-color: rgba(255, 255, 255, 0.07);
+  border-color: var(--primary);
+  box-shadow: 0 0 0 4px var(--primary-glow);
+}
+
+.auth-button {
+  background: var(--primary);
+  color: #04211d;
+  font-size: 0.98rem;
+  font-weight: 600;
+  padding: 15px;
+  border-radius: var(--radius-sm);
+  border: none;
+  margin-top: 22px;
+  cursor: pointer;
+  transition: var(--transition);
+  letter-spacing: 0.01em;
+}
+
+.auth-button:hover {
+  background: #3fe4cc;
+  box-shadow: 0 10px 26px var(--primary-glow);
+  transform: translateY(-1px);
+}
+
+.auth-switch {
+  margin-top: 28px;
+  color: var(--text-faint);
+  font-size: 0.92rem;
+}
+
+.auth-switch span {
+  color: var(--text-main);
+  cursor: pointer;
+  font-weight: 500;
+  transition: color 0.2s ease;
+}
+
+.auth-switch span:hover {
+  color: var(--primary);
+}
+
+.auth-error {
+  color: #f87171;
+  margin-bottom: 15px;
+  background-color: rgba(239, 68, 68, 0.08);
+  padding: 12px 14px;
+  border-radius: var(--radius-sm);
+  border: 1px solid rgba(239, 68, 68, 0.35);
+  font-size: 0.88rem;
+}
+
+@media (max-width: 500px) {
+  .auth-header { padding: 20px 24px; }
+  .auth-card { padding: 40px 26px 32px; margin: 80px 16px 20px 16px; }
+}
+
+.logo-accent {
+  color: var(--primary);
+  transition: color 0.2s ease;
+}.auth-benefits {
+  margin-bottom: 25px;
+  color: var(--text-dim);
+  font-size: 0.9rem;
+}
+
+.auth-benefits h3 {
+  color: var(--text-main);
+  margin-bottom: 10px;
+  font-size: 1.1rem;
+}
+
+.auth-benefits ul {
+  list-style: none;
+  padding: 0;
+}
+
+.auth-benefits li {
+  margin-bottom: 12px;
+  line-height: 1.4;
+}
+
+.auth-benefits strong {
+  color: var(--text-main);
+}
+
+.auth-wrapper {
+  display: flex;
+  align-items: center;
+  gap: 60px; /* המרווח בין הטקסט לטופס */
+  max-width: 900px;
+  width: 100%;
+  padding: 20px;
+  z-index: 10;
+  position: relative;
+}
+
+/* עיצוב אזור היתרונות הדינמי */
+.auth-benefits {
+  flex: 1;
+  color: var(--text-main);
+}
+
+.auth-benefits h2 {
+  font-size: 2.5rem;
+  margin-bottom: 20px;
+  line-height: 1.2;
+}
+
+/* הקטנת רוחב הקארד כדי שייכנס לצד הטקסט */
+.auth-card {
+  flex: 0 0 400px; /* רוחב קבוע לטופס */
+  margin-top: 0;   /* ביטול המרווח העליון הקודם */
+}
+
+/* התאמה למובייל - הופך לטור אחד במקום שורות */
+@media (max-width: 850px) {
+  .auth-wrapper {
+    flex-direction: column;
+    text-align: center;
+  }
+  .auth-card {
+    flex: 1;
+    width: 100%;
+  }
+}

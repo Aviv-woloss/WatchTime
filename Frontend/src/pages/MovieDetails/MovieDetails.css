@@ -1,0 +1,300 @@
+/* ---MovieDetails.css--- */
+
+.details-container {
+  position: relative;
+  min-height: 100vh;
+  color: var(--text-main, #fff);
+  background-color: var(--bg-main, #000000);
+}
+
+.hero-backdrop {
+  height: 45vh;
+  background-size: cover;
+  background-position: center;
+  position: relative;
+}
+
+/* אפקט הצללה על הרקע העליון */
+.hero-backdrop::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(to bottom, rgba(0, 0, 0, 0.2), var(--bg-main, #000000));
+}
+
+/* מעטפת התוכן הראשית - מסודרת בטור וממורכזת */
+.details-container .content-wrapper {
+  max-width: 1240px;
+  margin: 0 auto;
+  margin-top: -22vh;
+  padding: 0 48px 70px 48px;
+  position: relative;
+  z-index: 10;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+/* אזור עליון: פוסטר ופרטי הסרט זה לצד זה */
+.movie-header-section {
+  display: flex;
+  gap: 54px;
+  align-items: flex-start;
+  width: 100%;
+}
+
+.poster-image {
+  width: 300px;
+  border-radius: 12px;
+  box-shadow: 0 15px 35px rgba(0, 0, 0, 0.5);
+  flex-shrink: 0;
+}
+
+.info-section {
+  display: flex;
+  flex-direction: column;
+  flex-grow: 1;
+}
+
+.movie-title {
+  font-size: 3rem;
+  font-weight: 800;
+  margin-bottom: 12px;
+  letter-spacing: -0.5px;
+}
+
+.movie-meta {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  color: var(--text-dim, #94a3b8);
+  font-size: 1.05rem;
+  margin-bottom: 20px;
+}
+
+/* --- Movie Action Buttons (כפתורי מועדפים וצפייה אחר כך) --- */
+.movie-actions {
+  display: flex;
+  gap: 14px;
+  margin-bottom: 24px;
+}
+
+.action-btn {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid var(--border, rgba(255, 255, 255, 0.1));
+  color: var(--text-main, #fff);
+  padding: 10px 20px;
+  border-radius: 999px;
+  font-size: 0.95rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.action-btn:hover {
+  background: rgba(255, 255, 255, 0.1);
+  border-color: var(--text-dim, #94a3b8);
+}
+
+.action-btn svg {
+  transition: all 0.2s ease;
+}
+
+/* מצב מופעל לכפתור המועדפים (לב) */
+.favorite-active {
+  color: #ef4444;
+  border-color: #ef4444;
+  background: rgba(239, 68, 68, 0.1);
+}
+
+.favorite-active:hover {
+  background: rgba(239, 68, 68, 0.15);
+  border-color: #f87171;
+  color: #f87171;
+}
+
+/* מצב מופעל לכפתור הצפייה אחר כך (סימנייה) */
+.watchlist-active {
+  color: var(--primary, #14b8a6);
+  border-color: var(--primary, #14b8a6);
+  background: rgba(20, 184, 166, 0.1);
+}
+
+.watchlist-active:hover {
+  background: rgba(20, 184, 166, 0.15);
+  border-color: #3fe4cc;
+  color: #3fe4cc;
+}
+/* -------------------------------------------------- */
+
+.movie-overview {
+  font-size: 1.05rem;
+  line-height: 1.7;
+  color: #cbd5e1;
+  margin-bottom: 30px;
+  max-width: 800px;
+}
+
+.trailer-container {
+  width: 100%;
+  max-width: 800px;
+  aspect-ratio: 16 / 9;
+  border-radius: 12px;
+  overflow: hidden;
+  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.3);
+  margin-bottom: 20px;
+}
+
+.trailer-container iframe {
+  width: 100%;
+  height: 100%;
+  border: none;
+}
+
+/* --- אזור הביקורות (ממורכז למטה) --- */
+.reviews-section {
+  margin-top: 60px;
+  width: 100%;
+  max-width: 100000px; /* רוחב מושלם לקריאה שיושב במרכז */
+  border-top: 1px solid var(--border, rgba(255, 255, 255, 0.1));
+  padding-top: 40px;
+}
+
+.reviews-title {
+  font-size: 1.8rem;
+  font-weight: 700;
+  margin-bottom: 24px;
+}
+
+.review-form {
+  background: rgba(0, 0, 0, 0.02);
+  border: 1px solid var(--border, rgba(0, 0, 0, 0.1));
+  padding: 24px;
+  border-radius: 12px;
+  margin-bottom: 40px;
+}
+
+.review-form-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+
+.review-select {
+  background: #14b8a6;
+  color: #000000;
+  border: 1px solid var(--border, rgba(255, 255, 255, 0.1));
+  padding: 6px 12px;
+  border-radius: 6px;
+  font-size: 1.00rem;
+}
+
+.review-textarea {
+  width: 100%;
+  background: #000000;
+  color: #fff;
+  border: 1px solid var(--border, rgba(255, 255, 255, 0.1));
+  padding: 12px;
+  border-radius: 8px;
+  font-size: 1rem;
+  resize: vertical;
+  margin-bottom: 16px;
+}
+
+.review-submit-btn {
+  background: var(--primary, #14b8a6);
+  color: #0f172a;
+  border: none;
+  padding: 10px 24px;
+  border-radius: 8px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: opacity 0.2s;
+}
+
+.review-submit-btn:hover {
+  opacity: 0.9;
+}
+
+.reviews-list {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.review-card {
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid var(--border, rgba(255, 255, 255, 0.08));
+  padding: 20px;
+  border-radius: 10px;
+}
+
+.review-header {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
+
+.review-user {
+  font-weight: 600;
+  color: #f8fafc;
+}
+
+.review-rating {
+  color: #f59e0b;
+  font-weight: 600;
+}
+
+.review-text {
+  color: #cbd5e1;
+  font-size: 0.95rem;
+  line-height: 1.5;
+  margin-bottom: 8px;
+}
+
+.review-date {
+  font-size: 0.8rem;
+  color: var(--text-dim, #94a3b8);
+}
+
+.no-reviews {
+  color: var(--text-dim, #94a3b8);
+  font-style: italic;
+  text-align: center;
+  padding: 20px 0;
+}
+
+/* --- Responsive (מכשירים ניידים) --- */
+@media (max-width: 768px) {
+  .details-container .content-wrapper {
+    margin-top: -12vh;
+    padding: 0 20px 50px 20px;
+  }
+  
+  .movie-header-section {
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+    gap: 30px;
+  }
+  
+  .poster-image { 
+    width: 220px; 
+  }
+  
+  .info-section { 
+    align-items: center; 
+  }
+  
+  .movie-title { 
+    font-size: 2.2rem; 
+  }
+  
+  .movie-actions {
+    justify-content: center;
+  }
+}

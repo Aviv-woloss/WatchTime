@@ -1,0 +1,3396 @@
+### File: C:\Users\tzvie\Downloads\ëì îä ùçùåá áîçùá\îñîëéí ùìé\FS - CyberProAI\summray_project\moviesFS\docker-compose.yml
+```
+version: '3.8'
+
+services:
+  backend:
+    build: ./Backend
+    container_name: movies_backend
+    ports:
+      - "8000:8000"
+    env_file:
+      - ./Backend/.env
+    networks:
+      - app-network
+
+  frontend:
+    build: ./Frontend
+    container_name: movies_frontend
+    ports:
+      - "80:80"
+    depends_on:
+      - backend
+    networks:
+      - app-network
+
+networks:
+  app-network:
+    driver: bridge
+```
+
+### File: C:\Users\tzvie\Downloads\ëì îä ùçùåá áîçùá\îñîëéí ùìé\FS - CyberProAI\summray_project\moviesFS\Backend\Dockerfile
+```
+FROM python:3.11-slim
+
+WORKDIR /app
+
+COPY requirements.txt .
+RUN pip install --no-cache-dir --default-timeout=100 -r requirements.txt
+
+COPY . .
+
+EXPOSE 8000
+
+CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
+```
+
+### File: C:\Users\tzvie\Downloads\ëì îä ùçùåá áîçùá\îñîëéí ùìé\FS - CyberProAI\summray_project\moviesFS\Backend\app\main.py
+```
+from contextlib import asynccontextmanager
+from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
+from app.core.config import settings
+from app.core.database import connect_db, close_db
+from app.routers import auth, info, movies, user_movies
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    await connect_db()
+    yield
+    await close_db()
+
+app = FastAPI(title="Movies Fullstack Project", lifespan=lifespan)
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=settings.cors_origins_list,
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+app.include_router(auth.router)
+app.include_router(info.router)
+app.include_router(movies.router)
+app.include_router(user_movies.router)
+```
+
+### File: C:\Users\tzvie\Downloads\ëì îä ùçùåá áîçùá\îñîëéí ùìé\FS - CyberProAI\summray_project\moviesFS\Backend\app\__init__.py
+```
+```
+
+### File: C:\Users\tzvie\Downloads\ëì îä ùçùåá áîçùá\îñîëéí ùìé\FS - CyberProAI\summray_project\moviesFS\Backend\app\core\config.py
+```
+from pydantic_settings import BaseSettings, SettingsConfigDict
+
+class Settings(BaseSettings):
+    model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8")
+
+    MONGO_URI: str = "mongodb://localhost:27017"
+    DB_NAME: str = "portfolioDB"
+    JWT_SECRET: str = "change-me-in-production"
+    JWT_ALGORITHM: str = "HS256"
+    JWT_EXPIRE_MINUTES: int = 60
+    CORS_ORIGINS: str = "http://localhost:5173"
+    COOKIE_NAME: str = "access_token"
+    
+    TMDB_API_KEY: str
+    TMDB_BASE_URL: str = "https://api.themoviedb.org/3"
+
+    @property
+    def cors_origins_list(self) -> list[str]:
+        return [origin.strip() for origin in self.CORS_ORIGINS.split(",")]
+
+settings = Settings()
+```
+
+### File: C:\Users\tzvie\Downloads\ëì îä ùçùåá áîçùá\îñîëéí ùìé\FS - CyberProAI\summray_project\moviesFS\Backend\app\core\database.py
+```
+from pymongo import AsyncMongoClient
+from beanie import init_beanie
+from app.core.config import settings
+from app.models.info import Info
+from app.models.user import User
+from app.models.movie import Movie
+from app.models.favorite_movie import FavoriteMovie
+from app.models.watchlist_movie import WatchlistMovie
+
+client: AsyncMongoClient | None = None
+
+
+async def connect_db() -> None:
+    global client
+    client = AsyncMongoClient(settings.MONGO_URI)
+    db = client.get_database(settings.DB_NAME)
+    await init_beanie(
+        database=db,
+        document_models=[User, Info, Movie, FavoriteMovie, WatchlistMovie],
+    )
+
+
+async def close_db() -> None:
+    global client
+    if client is not None:
+        await client.close()
+        client = None
+```
+
+### File: C:\Users\tzvie\Downloads\ëì îä ùçùåá áîçùá\îñîëéí ùìé\FS - CyberProAI\summray_project\moviesFS\Backend\app\core\security.py
+```
+from datetime import datetime, timedelta, timezone
+
+import bcrypt
+from jose import JWTError, jwt
+
+from app.core.config import settings
+
+
+def hash_password(password: str) -> str:
+    return bcrypt.hashpw(password.encode(), bcrypt.gensalt()).decode()
+
+
+def verify_password(plain_password: str, hashed_password: str) -> bool:
+    return bcrypt.checkpw(plain_password.encode(), hashed_password.encode())
+
+
+def create_access_token(subject: str) -> str:
+    expire = datetime.now(timezone.utc) + timedelta(minutes=settings.JWT_EXPIRE_MINUTES)
+    payload = {"sub": subject, "exp": expire}
+    return jwt.encode(payload, settings.JWT_SECRET, algorithm=settings.JWT_ALGORITHM)
+
+
+def decode_access_token(token: str) -> str | None:
+    try:
+        payload = jwt.decode(token, settings.JWT_SECRET, algorithms=[settings.JWT_ALGORITHM])
+        subject = payload.get("sub")
+        if subject is None:
+            return None
+        return str(subject)
+    except JWTError:
+        return None
+```
+
+### File: C:\Users\tzvie\Downloads\ëì îä ùçùåá áîçùá\îñîëéí ùìé\FS - CyberProAI\summray_project\moviesFS\Backend\app\core\__init__.py
+```
+```
+
+### File: C:\Users\tzvie\Downloads\ëì îä ùçùåá áîçùá\îñîëéí ùìé\FS - CyberProAI\summray_project\moviesFS\Backend\app\dependencies\auth.py
+```
+from fastapi import Depends, HTTPException, Request, status
+from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
+from beanie import PydanticObjectId
+
+from app.core.config import settings
+from app.core.security import decode_access_token
+from app.models.user import User
+
+bearer_scheme = HTTPBearer(auto_error=False)
+
+async def get_current_user(
+    request: Request,
+    credentials: HTTPAuthorizationCredentials | None = Depends(bearer_scheme),
+) -> User:
+    token = request.cookies.get(settings.COOKIE_NAME)
+    if not token and credentials:
+        token = credentials.credentials
+
+    if not token:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Not authenticated",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
+    user_id = decode_access_token(token)
+    if user_id is None:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid or expired token",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
+    try:
+        oid = PydanticObjectId(user_id)
+    except ValueError:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid or expired token",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
+    user = await User.get(oid)
+    if user is None or not user.is_active:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="User not found or inactive",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
+    return user
+```
+
+### File: C:\Users\tzvie\Downloads\ëì îä ùçùåá áîçùá\îñîëéí ùìé\FS - CyberProAI\summray_project\moviesFS\Backend\app\dependencies\__init__.py
+```
+```
+
+### File: C:\Users\tzvie\Downloads\ëì îä ùçùåá áîçùá\îñîëéí ùìé\FS - CyberProAI\summray_project\moviesFS\Backend\app\models\favorite_movie.py
+```
+from datetime import datetime, timezone
+from beanie import Document, Link
+from pydantic import Field
+from app.models.user import User
+
+class FavoriteMovie(Document):
+    user: Link[User]
+    tmdb_id: int
+    title: str
+    release_year: int
+    added_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+
+    class Settings:
+        name = "favorite_movies"
+```
+
+### File: C:\Users\tzvie\Downloads\ëì îä ùçùåá áîçùá\îñîëéí ùìé\FS - CyberProAI\summray_project\moviesFS\Backend\app\models\info.py
+```
+from datetime import datetime, timezone
+
+from beanie import Document, Link
+from pydantic import Field
+
+from app.models.user import User
+
+
+class Info(Document):
+    user: Link[User]
+    title: str = "My Dashboard"
+    content: str = "Welcome! This is your personal dashboard info."
+    items: list[str] = Field(default_factory=lambda: ["Item 1", "Item 2", "Item 3"])
+    updated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+
+    class Settings:
+        name = "info"
+```
+
+### File: C:\Users\tzvie\Downloads\ëì îä ùçùåá áîçùá\îñîëéí ùìé\FS - CyberProAI\summray_project\moviesFS\Backend\app\models\movie.py
+```
+from datetime import datetime, timezone
+from pydantic import BaseModel, Field
+from beanie import Document, Indexed
+from app.schemas.movie import Review
+
+
+
+class Movie(Document):
+    tmdb_id: Indexed(int, unique=True)
+    title: str
+    release_year: int
+    reviews: list[Review] = Field(default_factory=list)
+    added_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+
+    class Settings:
+        name = "movies"
+```
+
+### File: C:\Users\tzvie\Downloads\ëì îä ùçùåá áîçùá\îñîëéí ùìé\FS - CyberProAI\summray_project\moviesFS\Backend\app\models\user.py
+```
+from datetime import datetime, timezone
+
+from beanie import Document, Indexed
+from pydantic import EmailStr, Field
+
+
+class User(Document):
+    email: Indexed(EmailStr, unique=True)
+    hashed_password: str
+    full_name: str | None = None
+    is_active: bool = True
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+
+    class Settings:
+        name = "users"
+```
+
+### File: C:\Users\tzvie\Downloads\ëì îä ùçùåá áîçùá\îñîëéí ùìé\FS - CyberProAI\summray_project\moviesFS\Backend\app\models\watchlist_movie.py
+```
+from datetime import datetime, timezone
+from beanie import Document, Link
+from pydantic import Field
+from app.models.user import User
+
+class WatchlistMovie(Document):
+    user: Link[User]
+    tmdb_id: int
+    title: str
+    release_year: int
+    added_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+
+    class Settings:
+        name = "watchlist_movies"
+```
+
+### File: C:\Users\tzvie\Downloads\ëì îä ùçùåá áîçùá\îñîëéí ùìé\FS - CyberProAI\summray_project\moviesFS\Backend\app\models\__init__.py
+```
+```
+
+### File: C:\Users\tzvie\Downloads\ëì îä ùçùåá áîçùá\îñîëéí ùìé\FS - CyberProAI\summray_project\moviesFS\Backend\app\routers\auth.py
+```
+from fastapi import APIRouter, Depends, HTTPException, Response, status
+
+from app.core.config import settings
+from app.core.security import (
+    create_access_token,
+    hash_password,
+    verify_password,
+)
+from app.dependencies.auth import get_current_user
+from app.models.info import Info
+from app.models.user import User
+from app.schemas.auth import AuthResponse, LoginRequest, RegisterRequest, UserPublic
+
+router = APIRouter(prefix="/api/auth", tags=["auth"])
+
+
+def user_to_public(user: User) -> UserPublic:
+    return UserPublic(
+        id=str(user.id),
+        email=user.email,
+        full_name=user.full_name,
+        is_active=user.is_active,
+    )
+
+
+def set_auth_cookie(response: Response, token: str) -> None:
+    response.set_cookie(
+        key=settings.COOKIE_NAME,
+        value=token,
+        max_age=settings.JWT_EXPIRE_MINUTES * 60,
+        httponly=True,
+        samesite="lax",
+        path="/",
+    )
+
+
+@router.post("/register", response_model=AuthResponse, status_code=status.HTTP_201_CREATED)
+async def register(payload: RegisterRequest, response: Response):
+    existing = await User.find_one(User.email == payload.email)
+    if existing:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Email already registered",
+        )
+
+    user = User(
+        email=payload.email,
+        hashed_password=hash_password(payload.password),
+        full_name=payload.full_name,
+    )
+    await user.insert()
+
+    info = Info(user=user)
+    await info.insert()
+
+    set_auth_cookie(response, create_access_token(str(user.id)))
+    return AuthResponse(user=user_to_public(user))
+
+
+@router.post("/login", response_model=AuthResponse)
+async def login(payload: LoginRequest, response: Response):
+    user = await User.find_one(User.email == payload.email)
+    if user is None or not verify_password(payload.password, user.hashed_password):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Incorrect email or password",
+        )
+
+    if not user.is_active:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="User account is inactive",
+        )
+
+    set_auth_cookie(response, create_access_token(str(user.id)))
+    return AuthResponse(user=user_to_public(user))
+
+
+@router.post("/logout")
+async def logout(response: Response):
+    response.delete_cookie(key=settings.COOKIE_NAME, path="/")
+    return {"message": "Logged out"}
+
+
+@router.get("/me", response_model=UserPublic)
+async def get_me(current_user: User = Depends(get_current_user)):
+    return user_to_public(current_user)
+```
+
+### File: C:\Users\tzvie\Downloads\ëì îä ùçùåá áîçùá\îñîëéí ùìé\FS - CyberProAI\summray_project\moviesFS\Backend\app\routers\info.py
+```
+from fastapi import APIRouter, Depends, HTTPException, status
+
+from app.dependencies.auth import get_current_user
+from app.models.info import Info
+from app.models.user import User
+from app.schemas.info import InfoResponse
+
+router = APIRouter(prefix="/api/info", tags=["info"])
+
+
+@router.get("/me", response_model=InfoResponse)
+async def get_my_info(current_user: User = Depends(get_current_user)):
+    info = await Info.find_one(Info.user.id == current_user.id)
+    if info is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Info not found for this user",
+        )
+
+    return InfoResponse(
+        id=str(info.id),
+        title=info.title,
+        content=info.content,
+        items=info.items,
+    )
+```
+
+### File: C:\Users\tzvie\Downloads\ëì îä ùçùåá áîçùá\îñîëéí ùìé\FS - CyberProAI\summray_project\moviesFS\Backend\app\routers\movies.py
+```
+from fastapi import APIRouter, Depends, HTTPException, status
+from app.core.config import settings
+from app.dependencies.auth import get_current_user
+from app.models.user import User
+from app.models.movie import Movie
+from app.schemas.movie import Review
+import httpx
+
+router = APIRouter(prefix="/api/movies", tags=["movies"])
+
+@router.get("/trending")
+async def get_trending():
+    async with httpx.AsyncClient() as client:
+        response = await client.get(f"{settings.TMDB_BASE_URL}/trending/movie/week?api_key={settings.TMDB_API_KEY}")
+        return response.json().get("results", [])
+
+@router.post("/review", status_code=status.HTTP_201_CREATED)
+async def add_movie_review(
+    tmdb_id: int,
+    title: str,
+    release_year: int,
+    rating: int,
+    comment: str,
+    current_user: User = Depends(get_current_user)
+):
+    movie = await Movie.find_one(Movie.tmdb_id == tmdb_id)
+    
+    if not movie:
+        movie = Movie(tmdb_id=tmdb_id, title=title, release_year=release_year)
+        await movie.insert()
+
+    new_review = Review(
+        user_id=str(current_user.id),
+        user_name=current_user.full_name or current_user.email,
+        rating=rating,
+        comment=comment
+    )
+    
+    movie.reviews.append(new_review)
+    await movie.save()
+    return {"message": "Review added successfully", "movie": movie}
+```
+
+### File: C:\Users\tzvie\Downloads\ëì îä ùçùåá áîçùá\îñîëéí ùìé\FS - CyberProAI\summray_project\moviesFS\Backend\app\routers\user_movies.py
+```
+from fastapi import APIRouter, Depends, HTTPException, status
+from app.dependencies.auth import get_current_user
+from app.models.user import User
+from app.models.favorite_movie import FavoriteMovie
+from app.models.watchlist_movie import WatchlistMovie
+from app.schemas.user_movies import UserMovieCreate, UserMovieResponse
+
+router = APIRouter(prefix="/api/user-movies", tags=["user-movies"])
+
+@router.post("/favorites", response_model=UserMovieResponse, status_code=status.HTTP_201_CREATED)
+async def add_favorite(payload: UserMovieCreate, current_user: User = Depends(get_current_user)):
+    fav = FavoriteMovie(
+        user=current_user,
+        tmdb_id=payload.tmdb_id,
+        title=payload.title,
+        release_year=payload.release_year
+    )
+    await fav.insert()
+    return UserMovieResponse(id=str(fav.id), tmdb_id=fav.tmdb_id, title=fav.title, release_year=fav.release_year)
+
+@router.get("/favorites", response_model=list[UserMovieResponse])
+async def get_favorites(current_user: User = Depends(get_current_user)):
+    favorites = await FavoriteMovie.find(FavoriteMovie.user.id == current_user.id).to_list()
+    return [UserMovieResponse(id=str(f.id), tmdb_id=f.tmdb_id, title=f.title, release_year=f.release_year) for f in favorites]
+
+@router.post("/watchlist", response_model=UserMovieResponse, status_code=status.HTTP_201_CREATED)
+async def add_watchlist(payload: UserMovieCreate, current_user: User = Depends(get_current_user)):
+    watch = WatchlistMovie(
+        user=current_user,
+        tmdb_id=payload.tmdb_id,
+        title=payload.title,
+        release_year=payload.release_year
+    )
+    await watch.insert()
+    return UserMovieResponse(id=str(watch.id), tmdb_id=watch.tmdb_id, title=watch.title, release_year=watch.release_year)
+
+@router.get("/watchlist", response_model=list[UserMovieResponse])
+async def get_watchlist(current_user: User = Depends(get_current_user)):
+    watchlist = await WatchlistMovie.find(WatchlistMovie.user.id == current_user.id).to_list()
+    return [UserMovieResponse(id=str(w.id), tmdb_id=w.tmdb_id, title=w.title, release_year=w.release_year) for w in watchlist]
+
+@router.delete("/favorites/{tmdb_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def remove_favorite(tmdb_id: int, current_user: User = Depends(get_current_user)):
+    fav = await FavoriteMovie.find_one(
+        FavoriteMovie.user.id == current_user.id,
+        FavoriteMovie.tmdb_id == tmdb_id
+    )
+    if not fav:
+        raise HTTPException(status_code=404, detail="Movie not found in favorites")
+    await fav.delete()
+    return None
+
+@router.delete("/watchlist/{tmdb_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def remove_watchlist(tmdb_id: int, current_user: User = Depends(get_current_user)):
+    watch = await WatchlistMovie.find_one(
+        WatchlistMovie.user.id == current_user.id,
+        WatchlistMovie.tmdb_id == tmdb_id
+    )
+    if not watch:
+        raise HTTPException(status_code=404, detail="Movie not found in watchlist")
+    await watch.delete()
+    return None
+```
+
+### File: C:\Users\tzvie\Downloads\ëì îä ùçùåá áîçùá\îñîëéí ùìé\FS - CyberProAI\summray_project\moviesFS\Backend\app\routers\__init__.py
+```
+```
+
+### File: C:\Users\tzvie\Downloads\ëì îä ùçùåá áîçùá\îñîëéí ùìé\FS - CyberProAI\summray_project\moviesFS\Backend\app\schemas\auth.py
+```
+from pydantic import BaseModel, EmailStr, Field
+
+
+class RegisterRequest(BaseModel):
+    email: EmailStr
+    password: str = Field(min_length=6)
+    full_name: str | None = Field(default=None, min_length=2)
+
+
+class LoginRequest(BaseModel):
+    email: EmailStr
+    password: str
+
+
+class UserPublic(BaseModel):
+    id: str
+    email: EmailStr
+    full_name: str | None = None
+    is_active: bool
+
+
+class AuthResponse(BaseModel):
+    user: UserPublic
+```
+
+### File: C:\Users\tzvie\Downloads\ëì îä ùçùåá áîçùá\îñîëéí ùìé\FS - CyberProAI\summray_project\moviesFS\Backend\app\schemas\info.py
+```
+from pydantic import BaseModel
+
+
+class InfoResponse(BaseModel):
+    id: str
+    title: str
+    content: str
+    items: list[str]
+```
+
+### File: C:\Users\tzvie\Downloads\ëì îä ùçùåá áîçùá\îñîëéí ùìé\FS - CyberProAI\summray_project\moviesFS\Backend\app\schemas\movie.py
+```
+from pydantic import BaseModel, Field
+
+class Review(BaseModel):
+    user_id: str
+    user_name: str
+    rating: int = Field(ge=1, le=10)
+    comment: str
+```
+
+### File: C:\Users\tzvie\Downloads\ëì îä ùçùåá áîçùá\îñîëéí ùìé\FS - CyberProAI\summray_project\moviesFS\Backend\app\schemas\user_movies.py
+```
+from pydantic import BaseModel
+
+class UserMovieCreate(BaseModel):
+    tmdb_id: int
+    title: str
+    release_year: int
+
+class UserMovieResponse(BaseModel):
+    id: str
+    tmdb_id: int
+    title: str
+    release_year: int
+```
+
+### File: C:\Users\tzvie\Downloads\ëì îä ùçùåá áîçùá\îñîëéí ùìé\FS - CyberProAI\summray_project\moviesFS\Backend\app\schemas\__init__.py
+```
+```
+
+### File: C:\Users\tzvie\Downloads\ëì îä ùçùåá áîçùá\îñîëéí ùìé\FS - CyberProAI\summray_project\moviesFS\Frontend\Dockerfile
+```
+# ×©×œ×‘ 1: Build ×œ×¤×¨×•× ×˜×× ×“
+FROM node:18-alpine AS builder
+WORKDIR /app
+COPY package*.json ./
+RUN npm install
+COPY . .
+RUN npm run build
+
+# ×©×œ×‘ 2: ×”×’×©×ª ×”×§×‘×¦×™× ×‘×¢×–×¨×ª Nginx
+FROM nginx:alpine
+COPY --from=builder /app/dist /usr/share/nginx/html
+# ×”×¢×ª×§×ª ×§×•×‘×¥ ×”×”×’×“×¨×•×ª ×”××•×ª×× ×©×œ× ×• ×œ-Nginx
+COPY nginx.conf /etc/nginx/conf.d/default.conf
+EXPOSE 80
+CMD ["nginx", "-g", "daemon off;"]
+```
+
+### File: C:\Users\tzvie\Downloads\ëì îä ùçùåá áîçùá\îñîëéí ùìé\FS - CyberProAI\summray_project\moviesFS\Frontend\index.html
+```
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>WatchTime</title>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.jsx"></script>
+  </body>
+</html>
+```
+
+### File: C:\Users\tzvie\Downloads\ëì îä ùçùåá áîçùá\îñîëéí ùìé\FS - CyberProAI\summray_project\moviesFS\Frontend\vite.config.js
+```
+import { defineConfig } from 'vite'
+import react from '@vitejs/plugin-react'
+
+export default defineConfig({
+  plugins: [react()],
+  server: {
+    proxy: {
+      '/api': 'http://localhost:8000',
+    },
+  },
+})
+```
+
+### File: C:\Users\tzvie\Downloads\ëì îä ùçùåá áîçùá\îñîëéí ùìé\FS - CyberProAI\summray_project\moviesFS\Frontend\src\App.jsx
+```
+import { BrowserRouter, Routes, Route } from "react-router-dom";
+import Layout from "./components/layout/Layout";
+import Home from "./pages/Home/Home";
+import MovieDetails from "./pages/MovieDetails/MovieDetails";
+import Auth from "./pages/Auth/Auth";
+import Profile from "./pages/Profile/Profile";
+
+function App() {
+  return (
+    <BrowserRouter>
+      <Routes>
+        <Route path="/" element={<Layout />}>
+          <Route index element={<Home />} />
+          <Route path="movie/:id" element={<MovieDetails />} />
+          <Route path="profile" element={<Profile />} />
+        </Route>
+        <Route path="/auth" element={<Auth />} />
+      </Routes>
+    </BrowserRouter>
+  );
+}
+
+export default App;
+```
+
+### File: C:\Users\tzvie\Downloads\ëì îä ùçùåá áîçùá\îñîëéí ùìé\FS - CyberProAI\summray_project\moviesFS\Frontend\src\index.css
+```
+/* src/index.css */
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;700&display=swap');
+
+:root {
+  --primary: #14b8a6;
+  --bg-color: #050505;
+  --text-main: #ffffff;
+  --text-dim: #a3a3a3;
+  --transition: all 0.3s ease;
+}
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body {
+  background-color: var(--bg-color);
+  color: var(--text-main);
+  font-family: 'Inter', sans-serif;
+  overflow-x: hidden;
+}
+
+h1, h2 {
+  font-weight: 700;
+  line-height: 1.2;
+}
+
+a {
+  text-decoration: none;
+  color: inherit;
+}
+```
+
+### File: C:\Users\tzvie\Downloads\ëì îä ùçùåá áîçùá\îñîëéí ùìé\FS - CyberProAI\summray_project\moviesFS\Frontend\src\main.jsx
+```
+import React from 'react'
+import ReactDOM from 'react-dom/client'
+import App from './App.jsx'
+import './index.css'
+
+ReactDOM.createRoot(document.getElementById('root')).render(
+  <React.StrictMode>
+    <App />
+  </React.StrictMode>,
+)
+```
+
+### File: C:\Users\tzvie\Downloads\ëì îä ùçùåá áîçùá\îñîëéí ùìé\FS - CyberProAI\summray_project\moviesFS\Frontend\src\api\backend.js
+```
+```
+
+### File: C:\Users\tzvie\Downloads\ëì îä ùçùåá áîçùá\îñîëéí ùìé\FS - CyberProAI\summray_project\moviesFS\Frontend\src\api\tmdb.js
+```
+const API_KEY = "0356589713b772426c7fd2c10e27f401"; 
+const BASE_URL = "https://api.themoviedb.org/3";
+
+export const fetchTrending = async () => {
+    try {
+        const response = await fetch('/api/movies/trending');
+        if (!response.ok) throw new Error('Failed to fetch trending from backend');
+        return await response.json();
+    } catch (error) {
+        console.error("Error in fetchTrending:", error);
+        return [];
+    }
+};
+
+export const fetchByGenre = async (genreId) => {
+    if (genreId === 'all') return await fetchTrending();
+    try {
+        const response = await fetch(`${BASE_URL}/discover/movie?api_key=${API_KEY}&with_genres=${genreId}`);
+        if (!response.ok) throw new Error('Failed to fetch genre from TMDB');
+        const data = await response.json();
+        return data.results;
+    } catch (error) {
+        console.error(`Error in fetchByGenre for genre ${genreId}:`, error);
+        return [];
+    }
+};
+
+export const fetchPopular = async () => {
+    const response = await fetch(`${BASE_URL}/movie/popular?api_key=${API_KEY}`);
+    const data = await response.json();
+    return data.results;
+};
+
+export const fetchMovieDetails = async (id) => {
+    const response = await fetch(`${BASE_URL}/movie/${id}?api_key=${API_KEY}&append_to_response=videos`);
+    const data = await response.json();
+    return data;
+};
+
+export const searchMovies = async (query) => {
+    const response = await fetch(`${BASE_URL}/search/movie?api_key=${API_KEY}&query=${encodeURIComponent(query)}`);
+    const data = await response.json();
+    return data.results;
+}
+
+export const getImageUrl = (path, size = "original") => {
+    if (!path) return "";
+    return `https://image.tmdb.org/t/p/${size}${path}`;
+};
+
+export const fetchTopRated = async () => {
+    const response = await fetch(`${BASE_URL}/movie/top_rated?api_key=${API_KEY}`);
+    const data = await response.json();
+    return data.results;
+};
+```
+
+### File: C:\Users\tzvie\Downloads\ëì îä ùçùåá áîçùá\îñîëéí ùìé\FS - CyberProAI\summray_project\moviesFS\Frontend\src\components\layout\Footer.css
+```
+/* src/components/layout/Footer.css */
+.footer-container {
+  background-color: #000000;
+  border-top: 1px solid var(--border, rgba(255, 255, 255, 0.1));
+  color: var(--text-dim, #94a3b8);
+  font-size: 0.9rem;
+  padding-top: 60px;
+  margin-top: auto;
+}
+
+.footer-content {
+  max-width: 1240px;
+  margin: 0 auto;
+  padding: 0 48px 40px 48px;
+  display: grid;
+  grid-template-columns: 2fr 1fr 1fr;
+  gap: 40px;
+}
+
+.footer-col {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.footer-logo {
+  font-family: var(--font-display, inherit);
+  font-size: 1.6rem;
+  font-weight: 600;
+  color: var(--text-main, #fff);
+  letter-spacing: 0.01em;
+}
+
+.footer-logo .logo-accent {
+  color: var(--primary, #14b8a6);
+}
+
+.footer-desc {
+  line-height: 1.6;
+  max-width: 320px;
+  color: #a3a3a3;
+}
+
+.footer-col h4 {
+  color: var(--text-main, #fff);
+  font-size: 1rem;
+  font-weight: 600;
+  margin-bottom: 4px;
+  letter-spacing: 0.02em;
+}
+
+.footer-links {
+  list-style: none;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.footer-links a {
+  color: #a3a3a3;
+  transition: color 0.2s ease;
+}
+
+.footer-links a:hover {
+  color: var(--primary, #14b8a6);
+}
+
+.footer-credit {
+  font-size: 0.82rem;
+  line-height: 1.5;
+  color: #737373;
+}
+
+.footer-bottom {
+  border-top: 1px solid rgba(255, 255, 255, 0.05);
+  padding: 24px 48px;
+  text-align: center;
+  color: #737373;
+  font-size: 0.85rem;
+}
+
+/* Responsive for Mobile */
+@media (max-width: 768px) {
+  .footer-content {
+    grid-template-columns: 1fr;
+    padding: 0 24px 30px 24px;
+    gap: 30px;
+    text-align: center;
+  }
+  
+  .footer-desc {
+    max-width: 100%;
+  }
+
+  .footer-col {
+    align-items: center;
+  }
+
+  .footer-bottom {
+    padding: 20px 24px;
+  }
+}
+```
+
+### File: C:\Users\tzvie\Downloads\ëì îä ùçùåá áîçùá\îñîëéí ùìé\FS - CyberProAI\summray_project\moviesFS\Frontend\src\components\layout\Footer.jsx
+```
+import { Link } from "react-router-dom";
+import "./Footer.css";
+
+export default function Footer() {
+  return (
+    <footer className="footer-container">
+      <div className="footer-content">
+        
+        {/* Column 1: Logo & Description */}
+        <div className="footer-col">
+          <Link to="/" className="footer-logo">
+            <span className="logo-accent">Watch</span>Time
+          </Link>
+          <p className="footer-desc">
+            Your ultimate destination to discover movies, track your watchlist, and share honest reviews with a community of fans.
+          </p>
+        </div>
+
+        {/* Column 2: Quick Links */}
+        <div className="footer-col">
+          <h4>Navigation</h4>
+          <ul className="footer-links">
+            <li><Link to="/">Home</Link></li>
+            <li><Link to="/auth">Sign In / Sign Up</Link></li>
+            <li><Link to="/profile">My Profile</Link></li>
+          </ul>
+        </div>
+
+        {/* Column 3: API Credit */}
+        <div className="footer-col">
+          <h4>Powered By</h4>
+          <p className="footer-credit">
+            This product uses the TMDB API but is not endorsed or certified by TMDB.
+          </p>
+        </div>
+
+      </div>
+
+      {/* Bottom Bar: Copyright */}
+      <div className="footer-bottom">
+        <p>&copy; {new Date().getFullYear()} WatchTime. All rights reserved.</p>
+      </div>
+    </footer>
+  );
+}
+```
+
+### File: C:\Users\tzvie\Downloads\ëì îä ùçùåá áîçùá\îñîëéí ùìé\FS - CyberProAI\summray_project\moviesFS\Frontend\src\components\layout\Layout.jsx
+```
+import { Outlet } from "react-router-dom";
+import Navbar from "./Navbar/Navbar";
+import Footer from "./Footer";
+
+function Layout() {
+  return (
+    <div className="layout-container">
+      <Navbar />
+      <main className="main-content">
+        <Outlet />
+      </main>
+      <Footer />
+    </div>
+  );
+}
+
+export default Layout;
+```
+
+### File: C:\Users\tzvie\Downloads\ëì îä ùçùåá áîçùá\îñîëéí ùìé\FS - CyberProAI\summray_project\moviesFS\Frontend\src\components\layout\Navbar\Navbar.css
+```
+/* src/components/layout/Navbar/Navbar.css */
+.navbar {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  padding: 22px 48px;
+  display: flex;
+  justify-content: flex-start;
+  align-items: center;
+  gap: 20px;
+  z-index: 1000;
+  background: transparent;
+  transition: background-color 0.4s var(--ease), backdrop-filter 0.4s var(--ease), border-color 0.4s var(--ease), padding 0.3s var(--ease);
+  border-bottom: 1px solid transparent;
+}
+
+.navbar.scrolled {
+  background-color: rgba(6, 6, 7, 0.75);
+  backdrop-filter: blur(16px) saturate(140%);
+  -webkit-backdrop-filter: blur(16px) saturate(140%);
+  border-bottom: 1px solid var(--border);
+  padding: 14px 48px;
+}
+
+.nav-left {
+  display: flex;
+  align-items: center;
+  margin-right: auto; /* pushes nav-center + nav-right together to the far right */
+}
+
+.nav-center {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+}
+
+.nav-right { display: flex; justify-content: flex-end; align-items: center; gap: 12px; }
+
+.logo {
+  font-family: var(--font-display);
+  font-size: 1.6rem;
+  font-weight: 600;
+  color: var(--text-main);
+  letter-spacing: 0.01em;
+}
+
+.logo-accent { color: var(--primary); }
+
+/* Collapsed magnifying-glass pill that expands into a search field.
+   No JS needed: the wrapper IS the click target (the real <input> fills
+   it entirely), and it expands on :focus-within. Collapsed, it's filled
+   with the same teal as the Login button; expanded, it becomes a dark
+   glass field and the icon flips to teal so it still reads clearly. */
+.search-wrapper {
+  --icon-color: #04211d;
+  position: relative;
+  width: 42px;
+  height: 42px;
+  border-radius: 999px;
+  background: var(--primary);
+  border: 1px solid transparent;
+  transition: width 0.32s var(--ease), background-color 0.3s var(--ease), border-color 0.3s var(--ease), box-shadow 0.3s var(--ease);
+}
+
+.search-wrapper:hover {
+  background: #3fe4cc;
+  box-shadow: 0 6px 20px var(--primary-glow);
+}
+
+.search-wrapper:focus-within {
+  --icon-color: var(--primary);
+  width: 280px;
+  background: rgba(6, 6, 7, 0.6);
+  border-color: var(--primary);
+  box-shadow: 0 0 0 4px var(--primary-glow);
+}
+
+/* The magnifying-glass icon, masked so it can be recolored via
+   background-color instead of shipping a fixed-color image. */
+.search-wrapper::before {
+  content: "";
+  position: absolute;
+  left: 11px;
+  top: 50%;
+  width: 20px;
+  height: 20px;
+  margin-top: -10px;
+  background-color: var(--icon-color);
+  -webkit-mask-image: url("data:image/png;base64,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");
+  mask-image: url("data:image/png;base64,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");
+  -webkit-mask-size: contain;
+  mask-size: contain;
+  -webkit-mask-repeat: no-repeat;
+  mask-repeat: no-repeat;
+  -webkit-mask-position: center;
+  mask-position: center;
+  pointer-events: none;
+  transition: background-color 0.3s var(--ease);
+  z-index: 1;
+}
+
+.search-input {
+  width: 100%;
+  height: 100%;
+  padding: 0 16px 0 42px;
+  background: transparent;
+  border: none;
+  color: var(--text-main);
+  font-size: 0.9rem;
+  cursor: pointer;
+}
+
+.search-input::placeholder {
+  color: var(--text-faint);
+  opacity: 0;
+  transition: opacity 0.2s var(--ease) 0.1s;
+}
+
+.search-wrapper:focus-within .search-input {
+  cursor: text;
+}
+
+.search-wrapper:focus-within .search-input::placeholder {
+  opacity: 1;
+}
+
+.search-input:focus {
+  outline: none;
+}
+
+.login-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 42px;
+  padding: 0 24px;
+  border-radius: 999px;
+  background: var(--primary);
+  color: #04211d;
+  font-size: 0.88rem;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  transition: var(--transition);
+  border: 1px solid transparent;
+  white-space: nowrap;
+  box-sizing: border-box;
+}
+
+.login-btn:hover {
+  background: #3fe4cc;
+  box-shadow: 0 6px 20px var(--primary-glow);
+  transform: translateY(-1px);
+}
+
+@media (max-width: 640px) {
+  .navbar, .navbar.scrolled { padding: 16px 20px; }
+  .logo { font-size: 1.3rem; }
+  .search-wrapper:focus-within { width: 200px; }
+}
+```
+
+### File: C:\Users\tzvie\Downloads\ëì îä ùçùåá áîçùá\îñîëéí ùìé\FS - CyberProAI\summray_project\moviesFS\Frontend\src\components\layout\Navbar\Navbar.jsx
+```
+import { useState, useEffect } from "react";
+import { Link } from "react-router-dom";
+import SearchSpotlight from "../../SearchSpotlight/SearchSpotlight";
+import "./Navbar.css";
+
+function Navbar() {
+  const [searchQuery, setSearchQuery] = useState("");
+  const [isScrolled, setIsScrolled] = useState(false);
+  const [isLoggedIn, setIsLoggedIn] = useState(false);
+
+  useEffect(() => {
+    const loggedIn = localStorage.getItem("isLoggedIn") === "true";
+    setIsLoggedIn(loggedIn);
+
+    const handleScroll = () => {
+      if (window.scrollY > 50) {
+        setIsScrolled(true);
+      } else {
+        setIsScrolled(false);
+      }
+    };
+
+    window.addEventListener("scroll", handleScroll);
+    return () => window.removeEventListener("scroll", handleScroll);
+  }, []);
+
+  return (
+    <nav className={`navbar ${isScrolled ? "scrolled" : ""}`}>
+      <div className="nav-left">
+        <Link to="/" className="logo">
+          <span className="logo-accent">Watch</span>Time
+        </Link>
+      </div>
+      
+      <div className="nav-center">
+        <div className="search-wrapper">
+          <input
+            type="text"
+            placeholder="Search movies..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="search-input"
+          />
+          <SearchSpotlight query={searchQuery} onClose={() => setSearchQuery("")} />
+        </div>
+      </div>
+
+      <div className="nav-right">
+        {isLoggedIn ? (
+          /* ×›××©×¨ ×”××©×ª××© ××—×•×‘×¨, × ×¦×™×’ ×¨×§ ××ª ×›×¤×ª×•×¨ ×”×¤×¨×•×¤×™×œ */
+          <Link to="/profile" className="login-btn">Profile</Link>
+        ) : (
+          /* ×›××©×¨ ×”××©×ª××© ×× ×•×ª×§, × ×¦×™×’ ××ª ×›×¤×ª×•×¨ ×”×”×ª×—×‘×¨×•×ª */
+          <Link to="/auth" className="login-btn">Login</Link>
+        )}
+      </div>
+    </nav>
+  );
+}
+
+export default Navbar;
+```
+
+### File: C:\Users\tzvie\Downloads\ëì îä ùçùåá áîçùá\îñîëéí ùìé\FS - CyberProAI\summray_project\moviesFS\Frontend\src\components\movie\TrailerModal.jsx
+```
+function TrailerModal({ videoKey, onClose }) {
+  if (!videoKey) return null;
+
+  return (
+    <div className="fixed inset-0 bg-black bg-opacity-90 z-[100] flex justify-center items-center">
+      <div className="relative w-full max-w-4xl aspect-video bg-black rounded-lg overflow-hidden shadow-2xl">
+        <button
+          onClick={onClose}
+          className="absolute top-4 right-4 text-white text-3xl z-10 hover:text-red-500"
+        >
+          &times;
+        </button>
+        <iframe
+          width="100%"
+          height="100%"
+          src={`https://www.youtube.com/embed/${videoKey}?autoplay=1`}
+          title="Trailer"
+          frameBorder="0"
+          allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+          allowFullScreen
+        ></iframe>
+      </div>
+    </div>
+  );
+}
+
+export default TrailerModal;
+```
+
+### File: C:\Users\tzvie\Downloads\ëì îä ùçùåá áîçùá\îñîëéí ùìé\FS - CyberProAI\summray_project\moviesFS\Frontend\src\components\movie\CategoryFilter\CategoryFilter.css
+```
+/* src/components/movie/CategoryFilter/CategoryFilter.css */
+.filter-container { 
+  display: flex; 
+  gap: 10px;
+  margin: 15px 0 30px 0;
+  overflow-x: auto; 
+  padding-bottom: 10px;
+  scrollbar-width: none; 
+}
+
+.filter-container::-webkit-scrollbar {
+  display: none;
+}
+
+.filter-btn { 
+  background: #000000; 
+  color: #cccccc;
+  /* ×”×•×¡×¤×ª ×§×• ××ª××¨ ×‘×¦×‘×¢ ×ª×›×œ×ª/×˜×•×¨×§×™×– ×¢×“×™×Ÿ ×›×‘×¨×™×¨×ª ××—×“×œ */
+  border: 1px solid #14b8a6; 
+  padding: 8px 24px; 
+  border-radius: 25px;
+  cursor: pointer;
+  transition: all 0.3s ease; 
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+/* ××¦×‘ ×¤×¢×™×œ (Active) ×•××¢×‘×¨ ×¢×›×‘×¨ (Hover) - ××™×œ×•×™ ××œ× ×‘×˜×•×¨×§×™×– */
+.filter-btn.active, 
+.filter-btn:hover { 
+  background: #14b8a6; 
+  border-color: #14b8a6; 
+  color: #ffffff;
+  box-shadow: 0 4px 15px rgba(20, 184, 166, 0.3);
+}
+```
+
+### File: C:\Users\tzvie\Downloads\ëì îä ùçùåá áîçùá\îñîëéí ùìé\FS - CyberProAI\summray_project\moviesFS\Frontend\src\components\movie\CategoryFilter\CategoryFilter.jsx
+```
+import "./CategoryFilter.css";
+
+function CategoryFilter({ categories, activeCategory, onSelect }) {
+  return (
+    <div className="filter-container">
+      {categories.map((cat) => (
+        <button
+          key={cat.id}
+          className={`filter-btn ${activeCategory === cat.id ? "active" : ""}`}
+          onClick={() => onSelect(cat.id)}
+        >
+          {cat.name}
+        </button>
+      ))}
+    </div>
+  );
+}
+export default CategoryFilter;
+```
+
+### File: C:\Users\tzvie\Downloads\ëì îä ùçùåá áîçùá\îñîëéí ùìé\FS - CyberProAI\summray_project\moviesFS\Frontend\src\components\movie\MovieRow\MovieRow.css
+```
+/* src/components/movie/MovieRow/MovieRow.css */
+.movie-row { 
+  margin-bottom: 44px; 
+}
+
+.section-title {
+  font-size: 1.3rem;
+  font-weight: 600;
+  margin-bottom: 18px;
+  color: var(--text-main);
+  padding-left: 14px;
+  border-left: 2px solid var(--primary);
+  letter-spacing: 0.01em;
+}
+
+.row-wrapper {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.row-posters {
+  display: flex;
+  overflow-x: auto;
+  gap: 18px;
+  padding: 10px 4px 16px;
+  scrollbar-width: none;
+}
+
+.row-posters::-webkit-scrollbar { 
+  display: none; 
+}
+
+.poster-link {
+  display: flex;
+  flex-direction: column;
+  flex-shrink: 0;
+  text-decoration: none;
+  width: 190px;
+}
+
+.poster-container {
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+  box-shadow: var(--shadow-soft);
+  transition: transform 0.35s ease, box-shadow 0.35s ease;
+  background: #111;
+}
+
+.poster-link:hover .poster-container {
+  transform: translateY(-6px) scale(1.02);
+  box-shadow: var(--shadow-strong);
+}
+
+.row-poster {
+  width: 100%;
+  height: 285px;
+  object-fit: cover;
+  display: block;
+  transition: filter 0.35s ease;
+  background: var(--surface);
+}
+
+.poster-link:hover .row-poster {
+  filter: brightness(1.05);
+}
+
+/* ××™×“×¢ ×©××•×¤×™×¢ ××ª×—×ª ×œ×¤×•×¡×˜×¨ */
+.movie-item-info {
+  padding: 10px 4px 0 4px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.movie-item-title {
+  font-size: 0.92rem;
+  font-weight: 600;
+  color: #fff;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin: 0;
+}
+
+/* ××¨×•×•×— ×•×¤×¨×™×¡×” ×©××¤×¨×™×“×” ×‘×™×Ÿ ×”×©× ×” ×œ×™××™×Ÿ ×œ×‘×™×Ÿ ×”×›×•×›×‘ ×œ×©×××œ */
+.movie-item-meta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between; 
+  font-size: 0.82rem;
+  color: #94a3b8;
+}
+
+.movie-item-year {
+  color: #94a3b8;
+}
+
+.movie-item-rating {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  color: #f59e0b;
+  font-weight: 500;
+}
+
+/* Carousel arrows */
+.scroll-btn {
+  position: absolute;
+  top: 0;
+  bottom: 16px;
+  width: 48px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(6, 6, 7, 0.55);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  border: 1px solid var(--border);
+  color: var(--text-main);
+  font-size: 1rem;
+  cursor: pointer;
+  z-index: 5;
+  opacity: 0;
+  transition: opacity 0.25s ease, background-color 0.25s ease;
+}
+
+.row-wrapper:hover .scroll-btn {
+  opacity: 1;
+}
+
+.scroll-btn:hover {
+  background: rgba(20, 184, 166, 0.25);
+  border-color: var(--primary);
+}
+
+.scroll-btn.left {
+  left: 0;
+  border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+}
+
+.scroll-btn.right {
+  right: 0;
+  border-radius: var(--radius-sm) 0 0 var(--radius-sm);
+}
+
+@media (max-width: 640px) {
+  .poster-link { 
+    width: 140px; 
+  }
+  .row-poster { 
+    height: 210px; 
+  }
+  .scroll-btn { 
+    display: none; 
+  }
+}
+```
+
+### File: C:\Users\tzvie\Downloads\ëì îä ùçùåá áîçùá\îñîëéí ùìé\FS - CyberProAI\summray_project\moviesFS\Frontend\src\components\movie\MovieRow\MovieRow.jsx
+```
+import { useRef, useEffect, useState } from "react";
+import { Link } from "react-router-dom";
+import { getImageUrl } from "../../../api/tmdb";
+import "./MovieRow.css";
+
+function MovieRow({ title, movies }) {
+  const rowRef = useRef(null);
+  const [isHovered, setIsHovered] = useState(false);
+
+  // ×¤×•× ×§×¦×™×™×ª ×”×’×œ×™×œ×” ×”×™×“× ×™×ª ×‘×œ×—×™×¦×” ×¢×œ ×”×—×™×¦×™×
+  const scroll = (direction) => {
+    if (rowRef.current) {
+      const { scrollLeft, clientWidth } = rowRef.current;
+      const scrollTo = direction === "left" 
+        ? scrollLeft - clientWidth + 100 
+        : scrollLeft + clientWidth - 100;
+      
+      rowRef.current.scrollTo({ left: scrollTo, behavior: "smooth" });
+    }
+  };
+
+  // ××¤×§×˜ ×’×œ×™×œ×” ××•×˜×•××˜×™×ª (×¡×¨×˜ × ×¢) ×¨×¦×™×£ ×•×—×œ×§
+  useEffect(() => {
+    const row = rowRef.current;
+    if (!row || !movies || movies.length === 0) return;
+
+    let animationFrameId;
+    const speed = 0.4; // ××”×™×¨×•×ª ×”×’×œ×™×œ×” (× ×™×ª×Ÿ ×œ×”×§×˜×™×Ÿ ××• ×œ×”×’×“×™×œ)
+
+    const startScrolling = () => {
+      if (!isHovered) {
+        row.scrollLeft += speed;
+        
+        // ×›×©×”×’×œ×™×œ×” ××’×™×¢×” ×œ×¡×•×£, ×—×•×–×¨×™× ×œ×”×ª×—×œ×” ×‘×¦×•×¨×” ×—×œ×§×”
+        if (row.scrollLeft >= row.scrollWidth - row.clientWidth - 1) {
+          row.scrollLeft = 0;
+        }
+      }
+      animationFrameId = requestAnimationFrame(startScrolling);
+    };
+
+    animationFrameId = requestAnimationFrame(startScrolling);
+
+    // × ×™×§×•×™ ×”×× ×™××¦×™×” ×‘-Unmount ×©×œ ×”×§×•××¤×•× × ×˜×”
+    return () => cancelAnimationFrame(animationFrameId);
+  }, [movies, isHovered]);
+
+  return (
+    <div className="movie-row">
+      <h2 className="section-title">{title}</h2>
+      <div 
+        className="row-wrapper"
+        onMouseEnter={() => setIsHovered(true)}
+        onMouseLeave={() => setIsHovered(false)}
+      >
+        <button className="scroll-btn left" onClick={() => scroll("left")}>&#10094;</button>
+        <div className="row-posters" ref={rowRef}>
+          {movies.map((movie) => {
+            const releaseYear = movie.release_date ? movie.release_date.substring(0, 4) : "";
+            const rating = movie.vote_average ? movie.vote_average.toFixed(1) : "";
+
+            return (
+              <Link key={movie.id} to={`/movie/${movie.id}`} className="poster-link">
+                <div className="poster-container">
+                  <img src={getImageUrl(movie.poster_path, "w500")} alt={movie.title} className="row-poster" />
+                </div>
+                <div className="movie-item-info">
+                  <h4 className="movie-item-title">{movie.title}</h4>
+                  <div className="movie-item-meta">
+                    {/* ×”×©× ×” ×ª×•×¤×™×¢ ×‘×¦×“ ×™××™×Ÿ */}
+                    {releaseYear && <span className="movie-item-year">{releaseYear}</span>}
+                    
+                    {/* ×”×“×™×¨×•×’ ×¢× ×”×›×•×›×‘ ×™×•×¤×™×¢ ×‘×¦×“ ×©×××œ */}
+                    {rating && (
+                      <div className="movie-item-rating">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="#f59e0b" stroke="#f59e0b" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                          <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon>
+                        </svg>
+                        <span>{rating}</span>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </Link>
+            );
+          })}
+        </div>
+        <button className="scroll-btn right" onClick={() => scroll("right")}>&#10095;</button>
+      </div>
+    </div>
+  );
+}
+
+export default MovieRow;
+```
+
+### File: C:\Users\tzvie\Downloads\ëì îä ùçùåá áîçùá\îñîëéí ùìé\FS - CyberProAI\summray_project\moviesFS\Frontend\src\components\SearchSpotlight\SearchSpotlight.css
+```
+.spotlight-container {
+  position: absolute;
+  top: 52px;
+  left: 0;
+  width: 100%;
+  background: rgba(14, 14, 16, 0.9);
+  backdrop-filter: blur(18px) saturate(150%);
+  -webkit-backdrop-filter: blur(18px) saturate(150%);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-md);
+  overflow-y: auto;
+  max-height: 420px;
+  box-shadow: var(--shadow-strong);
+  z-index: 2000;
+  animation: spotlight-in 0.18s var(--ease);
+}
+
+@keyframes spotlight-in {
+  from { opacity: 0; transform: translateY(-6px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.spotlight-results {
+  display: flex;
+  flex-direction: column;
+  padding: 6px;
+}
+
+.spotlight-item {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 8px;
+  border-radius: var(--radius-sm);
+  transition: background-color 0.2s var(--ease);
+}
+
+.spotlight-item:hover {
+  background-color: rgba(255, 255, 255, 0.06);
+}
+
+.spotlight-item img {
+  width: 44px;
+  height: 64px;
+  object-fit: cover;
+  border-radius: 6px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
+}
+
+.spotlight-info {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 4px;
+}
+
+.spotlight-info h4 {
+  margin: 0;
+  font-size: 0.95rem;
+  font-weight: 500;
+  color: var(--text-main);
+}
+
+.spotlight-info span {
+  font-size: 0.78rem;
+  color: var(--text-dim);
+  letter-spacing: 0.03em;
+}
+
+.spotlight-no-results {
+  padding: 28px 20px;
+  text-align: center;
+  color: var(--text-faint);
+  font-size: 0.9rem;
+}
+
+.spotlight-container::-webkit-scrollbar {
+  width: 6px;
+}
+
+.spotlight-container::-webkit-scrollbar-thumb {
+  background: var(--border-strong);
+  border-radius: 4px;
+}
+```
+
+### File: C:\Users\tzvie\Downloads\ëì îä ùçùåá áîçùá\îñîëéí ùìé\FS - CyberProAI\summray_project\moviesFS\Frontend\src\components\SearchSpotlight\SearchSpotlight.jsx
+```
+import { useEffect, useState } from "react";
+import { Link } from "react-router-dom";
+import { searchMovies, getImageUrl } from "../../api/tmdb";
+import "./SearchSpotlight.css";
+
+function SearchSpotlight({ query, onClose }) {
+  const [results, setResults] = useState([]);
+
+  useEffect(() => {
+    const fetchResults = async () => {
+      if (query.trim().length > 0) {
+        const data = await searchMovies(query);
+        setResults(data);
+      } else {
+        setResults([]);
+      }
+    };
+
+    const timer = setTimeout(() => {
+      fetchResults();
+    }, 300);
+
+    return () => clearTimeout(timer);
+  }, [query]);
+
+  if (!query) return null;
+
+  return (
+    <div className="spotlight-container">
+      {results.length > 0 ? (
+        <div className="spotlight-results">
+          {results.slice(0, 6).map((movie) => (
+            <Link
+              key={movie.id}
+              to={`/movie/${movie.id}`}
+              className="spotlight-item"
+              onClick={onClose}
+            >
+              <img src={getImageUrl(movie.poster_path, "w92")} alt={movie.title} />
+              <div className="spotlight-info">
+                <h4>{movie.title}</h4>
+                <span>{movie.release_date?.substring(0, 4)}</span>
+              </div>
+            </Link>
+          ))}
+        </div>
+      ) : (
+        <div className="spotlight-no-results">No movies found...</div>
+      )}
+    </div>
+  );
+}
+
+export default SearchSpotlight;
+```
+
+### File: C:\Users\tzvie\Downloads\ëì îä ùçùåá áîçùá\îñîëéí ùìé\FS - CyberProAI\summray_project\moviesFS\Frontend\src\pages\Auth\Auth.css
+```
+/* Auth.css */
+.auth-container {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background-color: var(--bg);
+  position: relative;
+}
+
+.auth-header {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  padding: 28px 48px;
+  z-index: 20;
+}
+
+.auth-logo {
+  font-family: var(--font-display);
+  font-size: 1.6rem;
+  font-weight: 600;
+  color: var(--text-main);
+  letter-spacing: 0.01em;
+  transition: opacity 0.2s ease;
+}
+
+.auth-logo:hover {
+  opacity: 0.85;
+}
+
+.auth-bg {
+  position: absolute;
+  inset: 0;
+  background-size: cover;
+  background-position: center;
+  opacity: 0.28;
+  z-index: 1;
+}
+
+.auth-container::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  background: linear-gradient(to top, var(--bg) 5%, rgba(6, 6, 7, 0.6) 55%, rgba(6, 6, 7, 0.85) 100%);
+}
+
+.auth-card {
+  position: relative;
+  z-index: 10;
+  background: rgba(14, 14, 16, 0.72);
+  backdrop-filter: blur(22px) saturate(140%);
+  -webkit-backdrop-filter: blur(22px) saturate(140%);
+  padding: 56px 64px 44px;
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--border-strong);
+  width: 100%;
+  max-width: 440px;
+  box-shadow: var(--shadow-strong);
+  color: var(--text-main);
+  margin-top: 60px;
+}
+
+.auth-title {
+  font-family: var(--font-display);
+  font-size: 2rem;
+  margin-bottom: 30px;
+  font-weight: 600;
+}
+
+.auth-form {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.auth-input {
+  background-color: rgba(255, 255, 255, 0.045);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 15px 18px;
+  color: var(--text-main);
+  font-size: 0.96rem;
+  transition: var(--transition);
+}
+
+.auth-input::placeholder {
+  color: var(--text-faint);
+}
+
+.auth-input:focus {
+  outline: none;
+  background-color: rgba(255, 255, 255, 0.07);
+  border-color: var(--primary);
+  box-shadow: 0 0 0 4px var(--primary-glow);
+}
+
+.auth-button {
+  background: var(--primary);
+  color: #04211d;
+  font-size: 0.98rem;
+  font-weight: 600;
+  padding: 15px;
+  border-radius: var(--radius-sm);
+  border: none;
+  margin-top: 22px;
+  cursor: pointer;
+  transition: var(--transition);
+  letter-spacing: 0.01em;
+}
+
+.auth-button:hover {
+  background: #3fe4cc;
+  box-shadow: 0 10px 26px var(--primary-glow);
+  transform: translateY(-1px);
+}
+
+.auth-switch {
+  margin-top: 28px;
+  color: var(--text-faint);
+  font-size: 0.92rem;
+}
+
+.auth-switch span {
+  color: var(--text-main);
+  cursor: pointer;
+  font-weight: 500;
+  transition: color 0.2s ease;
+}
+
+.auth-switch span:hover {
+  color: var(--primary);
+}
+
+.auth-error {
+  color: #f87171;
+  margin-bottom: 15px;
+  background-color: rgba(239, 68, 68, 0.08);
+  padding: 12px 14px;
+  border-radius: var(--radius-sm);
+  border: 1px solid rgba(239, 68, 68, 0.35);
+  font-size: 0.88rem;
+}
+
+@media (max-width: 500px) {
+  .auth-header { padding: 20px 24px; }
+  .auth-card { padding: 40px 26px 32px; margin: 80px 16px 20px 16px; }
+}
+
+.logo-accent {
+  color: var(--primary);
+  transition: color 0.2s ease;
+}.auth-benefits {
+  margin-bottom: 25px;
+  color: var(--text-dim);
+  font-size: 0.9rem;
+}
+
+.auth-benefits h3 {
+  color: var(--text-main);
+  margin-bottom: 10px;
+  font-size: 1.1rem;
+}
+
+.auth-benefits ul {
+  list-style: none;
+  padding: 0;
+}
+
+.auth-benefits li {
+  margin-bottom: 12px;
+  line-height: 1.4;
+}
+
+.auth-benefits strong {
+  color: var(--text-main);
+}
+
+.auth-wrapper {
+  display: flex;
+  align-items: center;
+  gap: 60px; /* ×”××¨×•×•×— ×‘×™×Ÿ ×”×˜×§×¡×˜ ×œ×˜×•×¤×¡ */
+  max-width: 900px;
+  width: 100%;
+  padding: 20px;
+  z-index: 10;
+  position: relative;
+}
+
+/* ×¢×™×¦×•×‘ ××–×•×¨ ×”×™×ª×¨×•× ×•×ª ×”×“×™× ××™ */
+.auth-benefits {
+  flex: 1;
+  color: var(--text-main);
+}
+
+.auth-benefits h2 {
+  font-size: 2.5rem;
+  margin-bottom: 20px;
+  line-height: 1.2;
+}
+
+/* ×”×§×˜× ×ª ×¨×•×—×‘ ×”×§××¨×“ ×›×“×™ ×©×™×™×›× ×¡ ×œ×¦×“ ×”×˜×§×¡×˜ */
+.auth-card {
+  flex: 0 0 400px; /* ×¨×•×—×‘ ×§×‘×•×¢ ×œ×˜×•×¤×¡ */
+  margin-top: 0;   /* ×‘×™×˜×•×œ ×”××¨×•×•×— ×”×¢×œ×™×•×Ÿ ×”×§×•×“× */
+}
+
+/* ×”×ª×××” ×œ××•×‘×™×™×œ - ×”×•×¤×š ×œ×˜×•×¨ ××—×“ ×‘××§×•× ×©×•×¨×•×ª */
+@media (max-width: 850px) {
+  .auth-wrapper {
+    flex-direction: column;
+    text-align: center;
+  }
+  .auth-card {
+    flex: 1;
+    width: 100%;
+  }
+}
+```
+
+### File: C:\Users\tzvie\Downloads\ëì îä ùçùåá áîçùá\îñîëéí ùìé\FS - CyberProAI\summray_project\moviesFS\Frontend\src\pages\Auth\Auth.jsx
+```
+import { useState } from "react";
+import { Link } from "react-router-dom";
+import "./Auth.css";
+
+export default function Auth() {
+  const [isLogin, setIsLogin] = useState(true);
+  
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [fullName, setFullName] = useState("");
+  const [errorMsg, setErrorMsg] = useState(""); // ×œ×”×¦×’×ª ×©×’×™××•×ª ××”×©×¨×ª
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setErrorMsg(""); 
+
+    const endpoint = isLogin ? "/api/auth/login" : "/api/auth/register";
+    
+    const payload = isLogin 
+      ? { email, password } 
+      : { email, password, full_name: fullName };
+
+    try {
+      const response = await fetch(endpoint, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(payload),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.detail || "Something went wrong. Please try again.");
+      }
+
+      localStorage.setItem("isLoggedIn", "true");
+      
+      window.location.href = "/";
+      
+    } catch (error) {
+      setErrorMsg(error.message);
+    }
+  };
+
+  return (
+  <div className="auth-container">
+    <header className="auth-header">
+      <Link to="/" className="auth-logo">
+        <span className="logo-accent">Watch</span>Time
+      </Link>
+    </header>
+
+    <div 
+      className="auth-bg" 
+      style={{ backgroundImage: "url('https://media.themoviedb.org/t/p/w1066_and_h600_face/2ssWTSVklAEc98frZUQhgtGHx7s.jpg')" }}
+    ></div>
+
+    <div className="auth-wrapper">
+      
+
+        <div className="auth-benefits">
+          <h2>Why join WatchTime?</h2>
+          <ul>
+            <li><strong>Your Watchlist</strong><br />Track your future views and get reminders.</li>
+            <li><strong>Your ratings</strong><br />Rate and remember what you watch.</li>
+            <li><strong>Contribute to WatchTime</strong><br />Add data that helps millions of fans.</li>
+          </ul>
+        </div>
+      
+      <div className="auth-card">
+        <h2 className="auth-title">{isLogin ? "Sign In" : "Sign Up"}</h2>
+        
+        {errorMsg && (
+          <div className="auth-error">
+            {errorMsg}
+          </div>
+        )}
+        
+        <form onSubmit={handleSubmit} className="auth-form">
+          {!isLogin && (
+            <input 
+              type="text" 
+              placeholder="Full Name" 
+              className="auth-input" 
+              value={fullName}
+              onChange={(e) => setFullName(e.target.value)}
+              required 
+            />
+          )}
+          
+          <input 
+            type="email" 
+            placeholder="Email Address" 
+            className="auth-input" 
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            required 
+          />
+          
+          <input 
+            type="password" 
+            placeholder="Password" 
+            className="auth-input" 
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            required 
+            minLength="6"
+          />
+          
+          <button type="submit" className="auth-button">
+            {isLogin ? "Sign In" : "Sign Up"}
+          </button>
+        </form>
+
+        <p className="auth-switch">
+          {isLogin ? "New to WatchTime? " : "Already have an account? "}
+          <span onClick={() => {
+            setIsLogin(!isLogin);
+            setErrorMsg(""); 
+          }}>
+            {isLogin ? "Sign up now" : "Sign in"}
+          </span>
+        </p>
+      </div>
+    </div>
+  </div>
+);
+}
+```
+
+### File: C:\Users\tzvie\Downloads\ëì îä ùçùåá áîçùá\îñîëéí ùìé\FS - CyberProAI\summray_project\moviesFS\Frontend\src\pages\Home\Home.css
+```
+/* src/pages/Home/Home.css */
+.home-container { min-height: 100vh; background-color: var(--bg); }
+
+.hero {
+  height: 100vh;
+  width: 100%;
+  background-size: cover;
+  background-position: center;
+  position: relative;
+  display: flex;
+  align-items: flex-end;
+  padding: 0 48px 70px 48px;
+  cursor: pointer;
+}
+
+.hero::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    to bottom,
+    rgba(6, 6, 7, 0.55) 0%,
+    rgba(6, 6, 7, 0.15) 12%,
+    transparent 24%,
+    transparent 52%,
+    rgba(6, 6, 7, 0.55) 78%,
+    var(--bg) 100%
+  );
+}
+
+/* Referenced in Home.jsx as a sibling of hero-content, layered above ::before */
+.hero-overlay {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(to right, rgba(6, 6, 7, 0.55) 0%, transparent 60%);
+  z-index: 1;
+}
+
+.hero-content {
+  position: relative;
+  z-index: 2;
+  max-width: 1000px;
+}
+
+.hero-content h1 {
+  font-family: var(--font-display);
+  font-weight: 5500;
+  font-size: 3.4rem;
+  margin-bottom: 16px;
+  color: var(--text-main);
+  text-shadow: 0 4px 24px rgba(0, 0, 0, 0.5);
+}
+
+.hero-overview {
+  font-size: 1.08rem;
+  line-height: 1.6;
+  color: var(--text-dim);
+  max-width: 560px;
+}
+
+.content-wrapper { max-width: 1440px; margin: 0 auto; padding: 0 48px; }
+
+.rows-container {
+  display: flex;
+  flex-direction: column;
+  gap: 44px;
+  padding-top: 56px;
+  padding-bottom: 40px;
+}
+
+.section-spacing {
+  margin-top: 8px;
+}
+
+.browse-title {
+  font-size: 1.3rem;
+  font-weight: 600;
+  margin-bottom: 4px;
+  color: var(--text-main);
+  letter-spacing: 0.01em;
+}
+
+@media (max-width: 768px) {
+  .hero { height: 70vh; padding: 0 24px 44px 24px; }
+  .hero-content h1 { font-size: 2.2rem; }
+  .content-wrapper { padding: 0 24px; }
+}
+.read-more {
+  color: white; 
+  cursor: pointer;
+  font-weight: 400;
+  margin-left: 5px;
+  transition: color 0.3s var(--ease);
+}
+
+.read-more:hover {
+  color: var(--primary); 
+}
+```
+
+### File: C:\Users\tzvie\Downloads\ëì îä ùçùåá áîçùá\îñîëéí ùìé\FS - CyberProAI\summray_project\moviesFS\Frontend\src\pages\Home\Home.jsx
+```
+import { useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
+// ×©×™× ×œ×‘ ×©×”×•×¡×¤× ×• ××ª fetchTopRated ×œ×™×™×‘×•×
+import { fetchTrending, fetchPopular, fetchByGenre, fetchTopRated } from "../../api/tmdb";
+import MovieRow from "../../components/movie/MovieRow/MovieRow";
+import CategoryFilter from "../../components/movie/CategoryFilter/CategoryFilter";
+import "./Home.css";
+
+function Home() {
+  const [trending, setTrending] = useState([]);
+  const [popular, setPopular] = useState([]);
+  const [topRated, setTopRated] = useState([]); // ×”-State ×”×—×“×© ×©×œ× ×•
+  const [activeCategory, setActiveCategory] = useState("all");
+  const [currentIndex, setCurrentIndex] = useState(0);
+  const navigate = useNavigate();
+
+  const categories = [
+    { id: "all", name: "All" },
+    { id: 28, name: "Action" },
+    { id: 12, name: "Adventure" },
+    { id: 16, name: "Animation" },
+    { id: 35, name: "Comedy" }
+  ];
+
+  useEffect(() => {
+    const loadMovies = async () => {
+      try {
+        // ××©×›× ×• ×’× ××ª topRated ×‘-Promise.all
+        const [trendingData, popularData, topRatedData] = await Promise.all([
+          fetchTrending(), 
+          fetchPopular(),
+          fetchTopRated()
+        ]);
+        
+        setTrending(trendingData);
+        setPopular(popularData);
+        setTopRated(topRatedData);
+      } catch (error) {
+        console.error("Error loading movies:", error);
+      }
+    };
+    loadMovies();
+  }, []);
+
+  useEffect(() => {
+    if (trending.length === 0) return;
+    const interval = setInterval(() => {
+      setCurrentIndex((prev) => (prev + 1) % trending.length);
+    }, 10000);
+    return () => clearInterval(interval);
+  }, [trending]);
+
+  const [filteredMovies, setFilteredMovies] = useState([]);
+
+  useEffect(() => {
+      const loadFiltered = async () => {
+          const results = await fetchByGenre(activeCategory);
+          setFilteredMovies(results);
+      };
+      loadFiltered();
+  }, [activeCategory]);
+
+  const currentMovie = trending[currentIndex];
+
+  return (
+    <div className="home-container">
+      {currentMovie && (
+        <div 
+          className="hero" 
+          style={{ backgroundImage: `url('https://image.tmdb.org/t/p/original/${currentMovie.backdrop_path}')` }}
+          onClick={() => navigate(`/movie/${currentMovie.id}`)}
+        >
+          <div className="hero-overlay"></div>
+          <div className="hero-content">
+            <h1>{currentMovie.title}</h1>
+            <p className="hero-overview">
+              {currentMovie.overview.length > 200 
+                ? `${currentMovie.overview.substring(0, 200)}...` 
+                : currentMovie.overview}
+            </p>
+          </div>
+        </div>
+      )}
+      
+      <div className="content-wrapper">
+        <div className="rows-container">
+          <MovieRow title="Trending This Week" movies={trending} />
+          <MovieRow title="Popular Movies" movies={popular} />
+          
+          {/* ×”×©×•×¨×” ×”×—×“×©×” ×©×”×•×¡×¤× ×• */}
+          <MovieRow title="Top Rated of All Time" movies={topRated} />
+
+          <section className="section-spacing">
+              <h2 className="browse-title">Browse by Category</h2>
+              <CategoryFilter 
+                categories={categories} 
+                activeCategory={activeCategory} 
+                onSelect={setActiveCategory} 
+              />
+              
+              {filteredMovies.length > 0 && (
+                <MovieRow 
+                  title={`${categories.find(c => c.id === activeCategory)?.name || ""} Movies`} 
+                  movies={filteredMovies} 
+                />
+              )}
+          </section>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+export default Home;
+```
+
+### File: C:\Users\tzvie\Downloads\ëì îä ùçùåá áîçùá\îñîëéí ùìé\FS - CyberProAI\summray_project\moviesFS\Frontend\src\pages\MovieDetails\MovieDetails.css
+```
+/* ---MovieDetails.css--- */
+
+.details-container {
+  position: relative;
+  min-height: 100vh;
+  color: var(--text-main, #fff);
+  background-color: var(--bg-main, #000000);
+}
+
+.hero-backdrop {
+  height: 45vh;
+  background-size: cover;
+  background-position: center;
+  position: relative;
+}
+
+/* ××¤×§×˜ ×”×¦×œ×œ×” ×¢×œ ×”×¨×§×¢ ×”×¢×œ×™×•×Ÿ */
+.hero-backdrop::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(to bottom, rgba(0, 0, 0, 0.2), var(--bg-main, #000000));
+}
+
+/* ××¢×˜×¤×ª ×”×ª×•×›×Ÿ ×”×¨××©×™×ª - ××¡×•×“×¨×ª ×‘×˜×•×¨ ×•×××•×¨×›×–×ª */
+.details-container .content-wrapper {
+  max-width: 1240px;
+  margin: 0 auto;
+  margin-top: -22vh;
+  padding: 0 48px 70px 48px;
+  position: relative;
+  z-index: 10;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+/* ××–×•×¨ ×¢×œ×™×•×Ÿ: ×¤×•×¡×˜×¨ ×•×¤×¨×˜×™ ×”×¡×¨×˜ ×–×” ×œ×¦×“ ×–×” */
+.movie-header-section {
+  display: flex;
+  gap: 54px;
+  align-items: flex-start;
+  width: 100%;
+}
+
+.poster-image {
+  width: 300px;
+  border-radius: 12px;
+  box-shadow: 0 15px 35px rgba(0, 0, 0, 0.5);
+  flex-shrink: 0;
+}
+
+.info-section {
+  display: flex;
+  flex-direction: column;
+  flex-grow: 1;
+}
+
+.movie-title {
+  font-size: 3rem;
+  font-weight: 800;
+  margin-bottom: 12px;
+  letter-spacing: -0.5px;
+}
+
+.movie-meta {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  color: var(--text-dim, #94a3b8);
+  font-size: 1.05rem;
+  margin-bottom: 20px;
+}
+
+/* --- Movie Action Buttons (×›×¤×ª×•×¨×™ ××•×¢×“×¤×™× ×•×¦×¤×™×™×” ××—×¨ ×›×š) --- */
+.movie-actions {
+  display: flex;
+  gap: 14px;
+  margin-bottom: 24px;
+}
+
+.action-btn {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid var(--border, rgba(255, 255, 255, 0.1));
+  color: var(--text-main, #fff);
+  padding: 10px 20px;
+  border-radius: 999px;
+  font-size: 0.95rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.action-btn:hover {
+  background: rgba(255, 255, 255, 0.1);
+  border-color: var(--text-dim, #94a3b8);
+}
+
+.action-btn svg {
+  transition: all 0.2s ease;
+}
+
+/* ××¦×‘ ××•×¤×¢×œ ×œ×›×¤×ª×•×¨ ×”××•×¢×“×¤×™× (×œ×‘) */
+.favorite-active {
+  color: #ef4444;
+  border-color: #ef4444;
+  background: rgba(239, 68, 68, 0.1);
+}
+
+.favorite-active:hover {
+  background: rgba(239, 68, 68, 0.15);
+  border-color: #f87171;
+  color: #f87171;
+}
+
+/* ××¦×‘ ××•×¤×¢×œ ×œ×›×¤×ª×•×¨ ×”×¦×¤×™×™×” ××—×¨ ×›×š (×¡×™×× ×™×™×”) */
+.watchlist-active {
+  color: var(--primary, #14b8a6);
+  border-color: var(--primary, #14b8a6);
+  background: rgba(20, 184, 166, 0.1);
+}
+
+.watchlist-active:hover {
+  background: rgba(20, 184, 166, 0.15);
+  border-color: #3fe4cc;
+  color: #3fe4cc;
+}
+/* -------------------------------------------------- */
+
+.movie-overview {
+  font-size: 1.05rem;
+  line-height: 1.7;
+  color: #cbd5e1;
+  margin-bottom: 30px;
+  max-width: 800px;
+}
+
+.trailer-container {
+  width: 100%;
+  max-width: 800px;
+  aspect-ratio: 16 / 9;
+  border-radius: 12px;
+  overflow: hidden;
+  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.3);
+  margin-bottom: 20px;
+}
+
+.trailer-container iframe {
+  width: 100%;
+  height: 100%;
+  border: none;
+}
+
+/* --- ××–×•×¨ ×”×‘×™×§×•×¨×•×ª (×××•×¨×›×– ×œ××˜×”) --- */
+.reviews-section {
+  margin-top: 60px;
+  width: 100%;
+  max-width: 100000px; /* ×¨×•×—×‘ ××•×©×œ× ×œ×§×¨×™××” ×©×™×•×©×‘ ×‘××¨×›×– */
+  border-top: 1px solid var(--border, rgba(255, 255, 255, 0.1));
+  padding-top: 40px;
+}
+
+.reviews-title {
+  font-size: 1.8rem;
+  font-weight: 700;
+  margin-bottom: 24px;
+}
+
+.review-form {
+  background: rgba(0, 0, 0, 0.02);
+  border: 1px solid var(--border, rgba(0, 0, 0, 0.1));
+  padding: 24px;
+  border-radius: 12px;
+  margin-bottom: 40px;
+}
+
+.review-form-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+
+.review-select {
+  background: #14b8a6;
+  color: #000000;
+  border: 1px solid var(--border, rgba(255, 255, 255, 0.1));
+  padding: 6px 12px;
+  border-radius: 6px;
+  font-size: 1.00rem;
+}
+
+.review-textarea {
+  width: 100%;
+  background: #000000;
+  color: #fff;
+  border: 1px solid var(--border, rgba(255, 255, 255, 0.1));
+  padding: 12px;
+  border-radius: 8px;
+  font-size: 1rem;
+  resize: vertical;
+  margin-bottom: 16px;
+}
+
+.review-submit-btn {
+  background: var(--primary, #14b8a6);
+  color: #0f172a;
+  border: none;
+  padding: 10px 24px;
+  border-radius: 8px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: opacity 0.2s;
+}
+
+.review-submit-btn:hover {
+  opacity: 0.9;
+}
+
+.reviews-list {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.review-card {
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid var(--border, rgba(255, 255, 255, 0.08));
+  padding: 20px;
+  border-radius: 10px;
+}
+
+.review-header {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
+
+.review-user {
+  font-weight: 600;
+  color: #f8fafc;
+}
+
+.review-rating {
+  color: #f59e0b;
+  font-weight: 600;
+}
+
+.review-text {
+  color: #cbd5e1;
+  font-size: 0.95rem;
+  line-height: 1.5;
+  margin-bottom: 8px;
+}
+
+.review-date {
+  font-size: 0.8rem;
+  color: var(--text-dim, #94a3b8);
+}
+
+.no-reviews {
+  color: var(--text-dim, #94a3b8);
+  font-style: italic;
+  text-align: center;
+  padding: 20px 0;
+}
+
+/* --- Responsive (××›×©×™×¨×™× × ×™×™×“×™×) --- */
+@media (max-width: 768px) {
+  .details-container .content-wrapper {
+    margin-top: -12vh;
+    padding: 0 20px 50px 20px;
+  }
+  
+  .movie-header-section {
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+    gap: 30px;
+  }
+  
+  .poster-image { 
+    width: 220px; 
+  }
+  
+  .info-section { 
+    align-items: center; 
+  }
+  
+  .movie-title { 
+    font-size: 2.2rem; 
+  }
+  
+  .movie-actions {
+    justify-content: center;
+  }
+}
+```
+
+### File: C:\Users\tzvie\Downloads\ëì îä ùçùåá áîçùá\îñîëéí ùìé\FS - CyberProAI\summray_project\moviesFS\Frontend\src\pages\MovieDetails\MovieDetails.jsx
+```
+import { useEffect, useState } from "react";
+import { useParams, Link } from "react-router-dom";
+import { fetchMovieDetails, getImageUrl } from "../../api/tmdb";
+import "./MovieDetails.css"; 
+
+function MovieDetails() {
+  const { id } = useParams();
+  const [movie, setMovie] = useState(null);
+  const [reviews, setReviews] = useState([]);
+  const [newReviewText, setNewReviewText] = useState("");
+  const [newReviewRating, setNewReviewRating] = useState(10);
+  
+  // × ×™×”×•×œ ××¦×‘ ×”×›×¤×ª×•×¨×™× ×”×—×“×©×™× (×–×× ×™ ×œ×¤×¨×•× ×˜×× ×“)
+  const [isFavorite, setIsFavorite] = useState(false);
+  const [inWatchlist, setInWatchlist] = useState(false);
+  
+  const isLoggedIn = localStorage.getItem("isLoggedIn") === "true";
+
+  useEffect(() => {
+    const loadDetails = async () => {
+      try {
+        const data = await fetchMovieDetails(id);
+        setMovie(data);
+      } catch (error) {
+        console.error(error);
+      }
+    };
+
+    const loadReviews = async () => {
+      try {
+        const res = await fetch(`/api/movies/${id}/reviews`);
+        if (res.ok) {
+          const data = await res.json();
+          setReviews(data);
+        } else {
+          throw new Error("Backend route not ready");
+        }
+      } catch (error) {
+        setReviews([
+          { _id: "1", user: "John Doe", rating: 9, text: "Amazing movie, the cinematography is stunning!", date: "2026-07-18" },
+          { _id: "2", user: "Jane Smith", rating: 7, text: "Good story but a bit too long.", date: "2026-07-19" }
+        ]);
+      }
+    };
+
+    const checkUserLists = async () => {
+      if (!isLoggedIn) return;
+      try {
+        const [favRes, watchRes] = await Promise.all([
+          fetch('/api/user-movies/favorites'),
+          fetch('/api/user-movies/watchlist')
+        ]);
+
+        if (favRes.ok) {
+          const favorites = await favRes.json();
+          // ×”×× ×”×¡×¨×˜ ×”× ×•×›×—×™ × ××¦× ×‘×¨×©×™××ª ×”××•×¢×“×¤×™×?
+          const isFav = favorites.some(movie => movie.tmdb_id === Number(id));
+          setIsFavorite(isFav);
+        }
+
+        if (watchRes.ok) {
+          const watchlist = await watchRes.json();
+          // ×”×× ×”×¡×¨×˜ ×”× ×•×›×—×™ × ××¦× ×‘×¨×©×™××ª ×”-Watchlist?
+          const isWatch = watchlist.some(movie => movie.tmdb_id === Number(id));
+          setInWatchlist(isWatch);
+        }
+      } catch (error) {
+        console.error("Error checking user lists:", error);
+      }
+    };
+
+    loadDetails();
+    loadReviews();
+    checkUserLists();
+  }, [id, isLoggedIn]);
+
+  const handleReviewSubmit = async (e) => {
+    e.preventDefault();
+    if (!newReviewText.trim()) return;
+    
+    const reviewPayload = {
+      movie_id: Number(id),
+      rating: newReviewRating,
+      text: newReviewText
+    };
+
+    try {
+      const res = await fetch('/api/reviews', {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(reviewPayload)
+      });
+
+      if (res.ok) {
+        const addedReview = await res.json();
+        setReviews([addedReview, ...reviews]);
+      } else {
+        throw new Error("Backend route missing");
+      }
+    } catch (error) {
+      const fallbackReview = {
+        _id: Date.now().toString(), 
+        user: "Current User",
+        rating: newReviewRating,
+        text: newReviewText,
+        date: new Date().toISOString().split('T')[0]
+      };
+      setReviews([fallbackReview, ...reviews]);
+    }
+
+    setNewReviewText("");
+    setNewReviewRating(10);
+  };
+
+  if (!movie) return <div className="loading">Loading...</div>;
+
+  const trailer = movie.videos?.results?.find(
+    (vid) => vid.type === "Trailer" && vid.site === "YouTube"
+  );
+
+  // ×¤×•× ×§×¦×™×” ×œ×”×•×¡×¤×” ××• ×”×¡×¨×” ×××•×¢×“×¤×™×
+  const handleToggleFavorite = async () => {
+    try {
+      const res = await fetch('/api/user-movies/favorites', {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          tmdb_id: Number(id),
+          title: movie.title,
+          release_year: movie.release_date ? parseInt(movie.release_date.substring(0, 4)) : 2026
+        })
+      });
+
+      if (res.ok) {
+        setIsFavorite(!isFavorite); // ×”×•×¤×š ××ª ××¦×‘ ×”×›×¤×ª×•×¨ ×‘×“×¤×“×¤×Ÿ ×¨×§ ×× ×”×©×¨×ª ××™×©×¨
+      } else {
+        console.error("Failed to update favorite");
+      }
+    } catch (error) {
+      console.error("Error:", error);
+    }
+  };
+
+  // ×¤×•× ×§×¦×™×” ×œ×”×•×¡×¤×” ××• ×”×¡×¨×” ×-Watchlist (Watch Later)
+  const handleToggleWatchlist = async () => {
+    try {
+      const res = await fetch('/api/user-movies/watchlist', {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          tmdb_id: Number(id),
+          title: movie.title,
+          release_year: movie.release_date ? parseInt(movie.release_date.substring(0, 4)) : 2026
+        })
+      });
+
+      if (res.ok) {
+        setInWatchlist(!inWatchlist); // ×”×•×¤×š ××ª ××¦×‘ ×”×›×¤×ª×•×¨ ×‘×“×¤×“×¤×Ÿ ×¨×§ ×× ×”×©×¨×ª ××™×©×¨
+      } else {
+        console.error("Failed to update watchlist");
+      }
+    } catch (error) {
+      console.error("Error:", error);
+    }
+  };
+
+  return (
+    <div className="details-container">   
+      <div
+        className="hero-backdrop"
+        style={{ backgroundImage: `url('${getImageUrl(movie.backdrop_path)}')` }}
+      ></div>
+
+      <div className="content-wrapper">
+        
+        {/* --- ××–×•×¨ ×¢×œ×™×•×Ÿ: ×¤×•×¡×˜×¨ ×•××™×“×¢ ×¢×œ ×”×¡×¨×˜ --- */}
+        <div className="movie-header-section">
+          <img
+            src={getImageUrl(movie.poster_path, "w500")}
+            alt={movie.title}
+            className="poster-image"
+          />
+          
+          <div className="info-section">
+            <h1 className="movie-title">{movie.title}</h1>
+            <div className="movie-meta">
+              <span>{movie.release_date?.substring(0, 4)}</span>
+              <span>â€¢</span>
+              <span>{movie.runtime} min</span>
+              <span>â€¢</span>
+              <span>{movie.vote_average?.toFixed(1)}/10</span>
+            </div>
+
+            {isLoggedIn && (
+              <div className="movie-actions">
+                {/* ×›×¤×ª×•×¨ ××•×¢×“×¤×™× */}
+                <button 
+                  className={`action-btn ${isFavorite ? "favorite-active" : ""}`}
+                  onClick={handleToggleFavorite}
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill={isFavorite ? "currentColor" : "none"} stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"></path>
+                  </svg>
+                  <span>{isFavorite ? "Favorited" : "Favorite"}</span>
+                </button>
+
+                {/* ×›×¤×ª×•×¨ Watch Later */}
+                <button 
+                  className={`action-btn ${inWatchlist ? "watchlist-active" : ""}`}
+                  onClick={handleToggleWatchlist}
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill={inWatchlist ? "currentColor" : "none"} stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"></path>
+                  </svg>
+                  <span>{inWatchlist ? "In Watchlist" : "Watch Later"}</span>
+                </button>
+              </div>
+            )}
+
+            <p className="movie-overview">{movie.overview}</p>
+            
+            {trailer && (
+              <div className="trailer-container">
+                <iframe
+                  src={`https://www.youtube.com/embed/${trailer.key}`}
+                  title={`${movie.title} Trailer`}
+                  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                  allowFullScreen
+                ></iframe>
+              </div>
+            )}
+          </div>
+        </div> {/* ×¡×’×™×¨×ª ××–×•×¨ ×¢×œ×™×•×Ÿ */}
+
+        {/* --- ××–×•×¨ ×ª×—×ª×•×Ÿ: ×‘×™×§×•×¨×•×ª (×××•×¨×›×– ××ª×—×ª ×œ××™×“×¢) --- */}
+        <div className="reviews-section">
+          <h2 className="reviews-title">User Reviews</h2>
+          
+          {isLoggedIn ? (
+            <form className="review-form" onSubmit={handleReviewSubmit}>
+              <div className="review-form-header">
+                <label>Rating:</label>
+                <select 
+                  value={newReviewRating} 
+                  onChange={(e) => setNewReviewRating(Number(e.target.value))}
+                  className="review-select"
+                >
+                  {[...Array(10)].map((_, i) => (
+                    <option key={i + 1} value={i + 1}>{i + 1} / 10</option>
+                  ))}
+                </select>
+              </div>
+              <textarea 
+                className="review-textarea"
+                placeholder="What did you think about the movie?"
+                value={newReviewText}
+                onChange={(e) => setNewReviewText(e.target.value)}
+                rows="3"
+              />
+              <button type="submit" className="review-submit-btn">Post Review</button>
+            </form>
+          ) : (
+            <div className="login-prompt" style={{ marginBottom: "30px", padding: "20px", backgroundColor: "#111", borderRadius: "8px", textAlign: "center" }}>
+              <p style={{ color: "#aaa", marginBottom: "10px" }}>Want to share your thoughts?</p>
+              <Link to="/auth" style={{ color: "#14b8a6", fontWeight: "bold", textDecoration: "underline" }}>
+                Sign in to post a review
+              </Link>
+            </div>
+          )}
+
+          <div className="reviews-list">
+            {reviews.length > 0 ? (
+              reviews.map((review) => (
+                <div key={review._id} className="review-card">
+                  <div className="review-header">
+                    <span className="review-user">{review.user}</span>
+                    <span className="review-rating"> {review.rating}/10</span>
+                  </div>
+                  <p className="review-text">{review.text}</p>
+                  <span className="review-date">{review.date}</span>
+                </div>
+              ))
+            ) : (
+              <p className="no-reviews">Be the first to review this movie!</p>
+            )}
+          </div>
+        </div> {/* ×¡×’×™×¨×ª ××–×•×¨ ×‘×™×§×•×¨×•×ª */}
+        
+      </div>
+    </div>
+  );
+}
+
+export default MovieDetails;
+```
+
+### File: C:\Users\tzvie\Downloads\ëì îä ùçùåá áîçùá\îñîëéí ùìé\FS - CyberProAI\summray_project\moviesFS\Frontend\src\pages\Profile\Profile.css
+```
+/* src/pages/Profile/Profile.css */
+.profile-container {
+  min-height: 100vh;
+  background-color: var(--bg);
+  padding-top: 100px; /* ×¨×•×•×— ××”× ××‘×‘××¨ */
+  padding-bottom: 60px;
+  color: var(--text-main);
+}
+
+.profile-content-wrapper {
+  max-width: 1000px;
+  margin: 0 auto;
+  padding: 0 24px;
+}
+
+/* Header & Info */
+.profile-header {
+  display: flex;
+  align-items: center;
+  gap: 30px;
+  background: rgba(14, 14, 16, 0.6);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 30px;
+  margin-bottom: 40px;
+  box-shadow: var(--shadow-soft);
+}
+
+.profile-avatar {
+  width: 100px;
+  height: 100px;
+  border-radius: 50%;
+  border: 2px solid var(--primary);
+  box-shadow: 0 0 15px rgba(20, 184, 166, 0.2);
+}
+
+.profile-info {
+  flex: 1;
+}
+
+.profile-info h2 {
+  font-family: var(--font-display);
+  font-size: 2.2rem;
+  margin-bottom: 5px;
+}
+
+.profile-email {
+  color: var(--text-dim);
+  font-size: 1rem;
+  margin-bottom: 5px;
+}
+
+.profile-date {
+  color: var(--text-faint);
+  font-size: 0.85rem;
+}
+
+/* ××¢×˜×¤×ª ×œ×¤×¢×•×œ×•×ª ×•×œ×¡×˜×˜×™×¡×˜×™×§×” ×‘×¦×“ ×™××™×Ÿ */
+.profile-actions-wrapper {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 16px;
+}
+
+/* ×¢×™×¦×•×‘ ×›×¤×ª×•×¨ ×”-Logout ×”×—×“×© ×©×œ ×”×¤×¨×•×¤×™×œ */
+.profile-logout-btn {
+  background: transparent;
+  color: var(--text-main);
+  border: 1px solid var(--primary);
+  padding: 8px 20px;
+  border-radius: 999px;
+  font-size: 0.88rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: var(--transition, all 0.2s ease);
+}
+
+.profile-logout-btn:hover {
+  background: rgba(20, 184, 166, 0.1);
+  box-shadow: 0 4px 12px var(--primary-glow);
+}
+
+.profile-stats {
+  display: flex;
+  gap: 20px;
+}
+
+.stat-box {
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: 15px 25px;
+  text-align: center;
+  min-width: 120px;
+}
+
+.stat-box h3 {
+  font-size: 1.8rem;
+  color: var(--primary);
+  margin-bottom: 5px;
+}
+
+.stat-box span {
+  font-size: 0.85rem;
+  color: var(--text-dim);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+/* Tabs */
+.profile-tabs {
+  display: flex;
+  gap: 15px;
+  margin-bottom: 25px;
+  border-bottom: 1px solid var(--border);
+  padding-bottom: 10px;
+}
+
+.tab-btn {
+  background: transparent;
+  color: var(--text-dim);
+  border: none;
+  font-size: 1.1rem;
+  font-weight: 500;
+  cursor: pointer;
+  padding: 10px 20px;
+  transition: var(--transition);
+  position: relative;
+}
+
+.tab-btn:hover {
+  color: var(--text-main);
+}
+
+.tab-btn.active {
+  color: var(--primary);
+}
+
+.tab-btn.active::after {
+  content: "";
+  position: absolute;
+  bottom: -11px;
+  left: 0;
+  width: 100%;
+  height: 2px;
+  background-color: var(--primary);
+  box-shadow: 0 -2px 10px var(--primary-glow);
+}
+
+/* Table */
+.table-container {
+  background: rgba(14, 14, 16, 0.4);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  overflow-x: auto;
+}
+
+.movies-table {
+  width: 100%;
+  border-collapse: collapse;
+  text-align: left;
+}
+
+.movies-table th {
+  padding: 18px 20px;
+  background-color: rgba(255, 255, 255, 0.02);
+  color: var(--text-dim);
+  font-weight: 500;
+  font-size: 0.9rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  border-bottom: 1px solid var(--border);
+}
+
+.movies-table td {
+  padding: 15px 20px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+  vertical-align: middle;
+}
+
+.movies-table tbody tr {
+  transition: background-color 0.2s ease;
+}
+
+.movies-table tbody tr:hover {
+  background-color: rgba(255, 255, 255, 0.04);
+}
+
+.td-poster img {
+  width: 60px;
+  height: 90px;
+  object-fit: cover;
+  border-radius: 6px;
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.5);
+  transition: transform 0.2s ease;
+}
+
+.td-poster img:hover {
+  transform: scale(1.05);
+}
+
+.td-title a {
+  font-weight: 600;
+  font-size: 1.1rem;
+  transition: color 0.2s ease;
+}
+
+.td-title a:hover {
+  color: var(--primary);
+}
+
+.td-year {
+  color: var(--text-dim);
+}
+
+.td-rating {
+  font-weight: 600;
+  color: #fbbf24; /* ×¦×‘×¢ ×–×”×‘ ×œ×›×•×›×‘ */
+}
+
+.remove-btn {
+  background: transparent;
+  color: #f87171;
+  border: 1px solid #f87171;
+  padding: 6px 12px;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  font-size: 0.85rem;
+  transition: all 0.2s ease;
+}
+
+.remove-btn:hover {
+  background: rgba(248, 113, 113, 0.1);
+}
+
+/* Empty State */
+.empty-state {
+  padding: 60px 20px;
+  text-align: center;
+  color: var(--text-dim);
+}
+
+.empty-state p {
+  margin-bottom: 20px;
+  font-size: 1.1rem;
+}
+
+.explore-btn {
+  display: inline-block;
+  background: var(--primary);
+  color: #04211d;
+  padding: 10px 24px;
+  border-radius: 999px;
+  font-weight: 600;
+  transition: var(--transition);
+}
+
+.explore-btn:hover {
+  background: #3fe4cc;
+  box-shadow: 0 4px 15px var(--primary-glow);
+}
+
+/* Mobile Responsive */
+@media (max-width: 768px) {
+  .profile-header {
+    flex-direction: column;
+    text-align: center;
+  }
+  
+  .profile-actions-wrapper {
+    width: 100%;
+    align-items: center;
+  }
+
+  .profile-stats {
+    width: 100%;
+    justify-content: center;
+  }
+  
+  .movies-table th:nth-child(3),
+  .movies-table td:nth-child(3) {
+    display: none;
+  }
+}
+```
+
+### File: C:\Users\tzvie\Downloads\ëì îä ùçùåá áîçùá\îñîëéí ùìé\FS - CyberProAI\summray_project\moviesFS\Frontend\src\pages\Profile\Profile.jsx
+```
+import { useState, useEffect } from "react";
+import { Link, useNavigate } from "react-router-dom";
+import "./Profile.css";
+
+export default function Profile() {
+  const navigate = useNavigate();
+  const [activeTab, setActiveTab] = useState("watchlist");
+
+  // State ×¢×‘×•×¨ ×”××©×ª××© ×•×”×¨×©×™××•×ª ××”×©×¨×ª
+  const [user, setUser] = useState(null);
+  const [favoriteMovies, setFavoriteMovies] = useState([]);
+  const [watchlistMovies, setWatchlistMovies] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const isLoggedIn = localStorage.getItem("isLoggedIn") === "true";
+    if (!isLoggedIn) {
+      navigate("/auth");
+      return;
+    }
+
+    // ×©×œ×™×¤×ª ×¤×¨×˜×™ ×”××©×ª××© ×”××—×•×‘×¨ ×•×”×¡×¨×˜×™× ×©×œ×• ×‘××§×‘×™×œ ××”-Backend
+    const fetchProfileData = async () => {
+      try {
+        const [userRes, favRes, watchRes] = await Promise.all([
+          fetch('/api/auth/me'),
+          fetch('/api/user-movies/favorites'),
+          fetch('/api/user-movies/watchlist')
+        ]);
+
+        if (userRes.ok) {
+          const userData = await userRes.json();
+          setUser(userData);
+        } else {
+          // ×× ×”×˜×•×§×Ÿ ×¤×’ ×ª×•×§×£ ××• ×©××™× ×• ××•×¨×©×”
+          localStorage.removeItem("isLoggedIn");
+          navigate("/auth");
+          return;
+        }
+
+        if (favRes.ok && watchRes.ok) {
+          const favData = await favRes.json();
+          const watchData = await watchRes.json();
+          setFavoriteMovies(favData);
+          setWatchlistMovies(watchData);
+        }
+      } catch (error) {
+        console.error("Error fetching profile data:", error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchProfileData();
+  }, [navigate]);
+
+  // ×¤×•× ×§×¦×™×™×ª ×™×¦×™××” ××”×—×©×‘×•×Ÿ
+  const handleLogout = () => {
+    localStorage.removeItem("isLoggedIn");
+    window.location.href = "/";
+  };
+
+  if (loading || !user) {
+    return (
+      <div className="profile-container">
+        <div className="profile-content-wrapper" style={{ textAlign: "center", padding: "100px" }}>
+          <h2>Loading profile...</h2>
+        </div>
+      </div>
+    );
+  }
+
+  // ×™×¦×™×¨×ª ××•×•×˜××¨ ×“×™× ××™ ×œ×¤×™ ×”×©× ×©×œ ×”××©×ª××© ×©× ×¨×©×
+  const displayName = user.full_name || user.email.split("@")[0];
+  const avatarUrl = `https://ui-avatars.com/api/?name=${encodeURIComponent(displayName)}&background=14b8a6&color=fff&size=128`;
+
+  const currentList = activeTab === "watchlist" ? watchlistMovies : favoriteMovies;
+
+  const handleRemoveMovie = async (tmdbId) => {
+    const endpoint = activeTab === "watchlist" 
+      ? `/api/user-movies/watchlist/${tmdbId}` 
+      : `/api/user-movies/favorites/${tmdbId}`;
+
+    try {
+      const res = await fetch(endpoint, {
+        method: "DELETE",
+      });
+
+      if (res.ok) {
+        // ×¢×“×›×•×Ÿ ×”-State ×”××§×•××™ ×›×š ×©×”×¡×¨×˜ ×™×•×¡×¨ ××™×“ ××”×˜×‘×œ×” ×‘×“×¤×“×¤×Ÿ
+        if (activeTab === "watchlist") {
+          setWatchlistMovies(watchlistMovies.filter(m => m.tmdb_id !== tmdbId));
+        } else {
+          setFavoriteMovies(favoriteMovies.filter(m => m.tmdb_id !== tmdbId));
+        }
+      } else {
+        console.error("Failed to remove movie");
+      }
+    } catch (error) {
+      console.error("Error connecting to server:", error);
+    }
+  };
+
+  return (
+    <div className="profile-container">
+      <div className="profile-content-wrapper">
+        
+        {/* ××–×•×¨ ×¤×¨×˜×™ ×”××©×ª××© ×”×××™×ª×™×™× ××”-DB */}
+        <div className="profile-header">
+          <img src={avatarUrl} alt={displayName} className="profile-avatar" />
+          <div className="profile-info">
+            <h2>{displayName}</h2>
+            <p className="profile-email">{user.email}</p>
+            <p className="profile-date">Active Account</p>
+          </div>
+          
+          <div className="profile-actions-wrapper">
+            <button className="profile-logout-btn" onClick={handleLogout}>
+              Logout
+            </button>
+            <div className="profile-stats">
+              <div className="stat-box">
+                <h3>{watchlistMovies.length}</h3>
+                <span>Watchlist</span>
+              </div>
+              <div className="stat-box">
+                <h3>{favoriteMovies.length}</h3>
+                <span>Favorites</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* ×˜××‘×™× ×œ× ×™×•×•×˜ ×‘×™×Ÿ ×”×˜×‘×œ××•×ª */}
+        <div className="profile-tabs">
+          <button 
+            className={`tab-btn ${activeTab === "watchlist" ? "active" : ""}`}
+            onClick={() => setActiveTab("watchlist")}
+          >
+            My Watchlist
+          </button>
+          <button 
+            className={`tab-btn ${activeTab === "favorites" ? "active" : ""}`}
+            onClick={() => setActiveTab("favorites")}
+          >
+            Favorite Movies
+          </button>
+        </div>
+
+        {/* ×˜×‘×œ×ª ×”×¡×¨×˜×™× */}
+        <div className="table-container">
+          {currentList.length > 0 ? (
+            <table className="movies-table">
+              <thead>
+                <tr>
+                  <th>Title</th>
+                  <th>Release Year</th>
+                  <th>Action</th>
+                </tr>
+              </thead>
+              <tbody>
+                {currentList.map((movie) => (
+                  <tr key={movie.id}>
+                    <td className="td-title">
+                      <Link to={`/movie/${movie.tmdb_id}`}>{movie.title}</Link>
+                    </td>
+                    <td className="td-year">{movie.release_year}</td>
+                    <td className="td-action">
+                      <button 
+                        className="remove-btn" 
+                        onClick={() => handleRemoveMovie(movie.tmdb_id)}>
+                        Remove
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          ) : (
+            <div className="empty-state">
+              <p>Your {activeTab} is empty.</p>
+              <Link to="/" className="explore-btn">Explore Movies</Link>
+            </div>
+          )}
+        </div>
+
+      </div>
+    </div>
+  );
+}
+```
+
