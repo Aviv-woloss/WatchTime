@@ -43,9 +43,36 @@ function MovieDetails() {
       }
     };
 
+    const checkUserLists = async () => {
+      if (!isLoggedIn) return;
+      try {
+        const [favRes, watchRes] = await Promise.all([
+          fetch('/api/user-movies/favorites'),
+          fetch('/api/user-movies/watchlist')
+        ]);
+
+        if (favRes.ok) {
+          const favorites = await favRes.json();
+          // האם הסרט הנוכחי נמצא ברשימת המועדפים?
+          const isFav = favorites.some(movie => movie.tmdb_id === Number(id));
+          setIsFavorite(isFav);
+        }
+
+        if (watchRes.ok) {
+          const watchlist = await watchRes.json();
+          // האם הסרט הנוכחי נמצא ברשימת ה-Watchlist?
+          const isWatch = watchlist.some(movie => movie.tmdb_id === Number(id));
+          setInWatchlist(isWatch);
+        }
+      } catch (error) {
+        console.error("Error checking user lists:", error);
+      }
+    };
+
     loadDetails();
     loadReviews();
-  }, [id]);
+    checkUserLists();
+  }, [id, isLoggedIn]);
 
   const handleReviewSubmit = async (e) => {
     e.preventDefault();
@@ -91,6 +118,52 @@ function MovieDetails() {
     (vid) => vid.type === "Trailer" && vid.site === "YouTube"
   );
 
+  // פונקציה להוספה או הסרה ממועדפים
+  const handleToggleFavorite = async () => {
+    try {
+      const res = await fetch('/api/user-movies/favorites', {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          tmdb_id: Number(id),
+          title: movie.title,
+          release_year: movie.release_date ? parseInt(movie.release_date.substring(0, 4)) : 2026
+        })
+      });
+
+      if (res.ok) {
+        setIsFavorite(!isFavorite); // הופך את מצב הכפתור בדפדפן רק אם השרת אישר
+      } else {
+        console.error("Failed to update favorite");
+      }
+    } catch (error) {
+      console.error("Error:", error);
+    }
+  };
+
+  // פונקציה להוספה או הסרה מ-Watchlist (Watch Later)
+  const handleToggleWatchlist = async () => {
+    try {
+      const res = await fetch('/api/user-movies/watchlist', {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          tmdb_id: Number(id),
+          title: movie.title,
+          release_year: movie.release_date ? parseInt(movie.release_date.substring(0, 4)) : 2026
+        })
+      });
+
+      if (res.ok) {
+        setInWatchlist(!inWatchlist); // הופך את מצב הכפתור בדפדפן רק אם השרת אישר
+      } else {
+        console.error("Failed to update watchlist");
+      }
+    } catch (error) {
+      console.error("Error:", error);
+    }
+  };
+
   return (
     <div className="details-container">   
       <div
@@ -118,12 +191,12 @@ function MovieDetails() {
               <span>{movie.vote_average?.toFixed(1)}/10</span>
             </div>
 
-            {/* כפתורי הפעולה החדשים - מופיעים רק למחוברים */}
             {isLoggedIn && (
               <div className="movie-actions">
+                {/* כפתור מועדפים */}
                 <button 
                   className={`action-btn ${isFavorite ? "favorite-active" : ""}`}
-                  onClick={() => setIsFavorite(!isFavorite)}
+                  onClick={handleToggleFavorite}
                 >
                   <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill={isFavorite ? "currentColor" : "none"} stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                     <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"></path>
@@ -131,9 +204,10 @@ function MovieDetails() {
                   <span>{isFavorite ? "Favorited" : "Favorite"}</span>
                 </button>
 
+                {/* כפתור Watch Later */}
                 <button 
                   className={`action-btn ${inWatchlist ? "watchlist-active" : ""}`}
-                  onClick={() => setInWatchlist(!inWatchlist)}
+                  onClick={handleToggleWatchlist}
                 >
                   <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill={inWatchlist ? "currentColor" : "none"} stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                     <path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"></path>

@@ -12,7 +12,7 @@ function App() {
         <Route path="/" element={<Layout />}>
           <Route index element={<Home />} />
           <Route path="movie/:id" element={<MovieDetails />} />
-          <Route path="profile" element={<Profile />} /> {/* הוספנו את הראוט הזה */}
+          <Route path="profile" element={<Profile />} />
         </Route>
         <Route path="/auth" element={<Auth />} />
       </Routes>

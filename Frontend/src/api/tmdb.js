@@ -15,9 +15,10 @@ export const fetchTrending = async () => {
 export const fetchByGenre = async (genreId) => {
     if (genreId === 'all') return await fetchTrending();
     try {
-        const response = await fetch(`/api/movies/genre/${genreId}`);
-        if (!response.ok) throw new Error('Failed to fetch genre from backend');
-        return await response.json();
+        const response = await fetch(`${BASE_URL}/discover/movie?api_key=${API_KEY}&with_genres=${genreId}`);
+        if (!response.ok) throw new Error('Failed to fetch genre from TMDB');
+        const data = await response.json();
+        return data.results;
     } catch (error) {
         console.error(`Error in fetchByGenre for genre ${genreId}:`, error);
         return [];
